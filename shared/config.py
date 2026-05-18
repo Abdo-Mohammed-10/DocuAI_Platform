@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "DocuAI dev"
     APP_VERSION: str = "0.1.0"
     APP_DESCRIPTION: str = "A document processing and question-answering system using AI."
-    SeCRET_KEY: str : ""
+    SeCRET_KEY: str = "DocuAISecretKey"
     
     # PostgreSQL
     postgres_host: str = "localhost"
