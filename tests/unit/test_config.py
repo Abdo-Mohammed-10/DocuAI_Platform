@@ -1,5 +1,6 @@
 from shared.config import settings
 
+
 def test_settings_loading():
     assert settings.postgres_db == "DocuAI_db"
     assert settings.redis_port == 6379
