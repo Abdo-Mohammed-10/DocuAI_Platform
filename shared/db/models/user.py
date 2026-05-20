@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from shared.db.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from shared.db.models.document import Document
 
 
 class User(Base, TimestampMixin):

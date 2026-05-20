@@ -1,4 +1,5 @@
 import uuid
+
 from shared.db.models.document import Document, DocumentStatus
 from shared.db.models.user import User
 
@@ -20,10 +21,10 @@ def test_document_model_tablename():
 
 def test_document_default_status():
     doc = Document(
-    id=uuid.uuid4(),
-    owner_id=uuid.uuid4(),
-    filename="test.pdf",
-    status=DocumentStatus.PENDING,
-)
+        id=uuid.uuid4(),
+        owner_id=uuid.uuid4(),
+        filename="test.pdf",
+        status=DocumentStatus.PENDING,
+    )
 
     assert doc.status == DocumentStatus.PENDING

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
@@ -9,16 +10,21 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from shared.db.base import Base, TimestampMixin
 
+if TYPE_CHECKING:
+    from shared.db.models.chunk import Chunk
+    from shared.db.models.user import User
+
 
 class DocumentStatus(str, Enum):
-    PENDING    = "pending"
+    PENDING = "pending"
     PROCESSING = "processing"
-    DONE       = "done"
-    FAILED     = "failed"
+    DONE = "done"
+    FAILED = "failed"
+
 
 class Document(Base, TimestampMixin):
     __tablename__ = "documents"
-    
+
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
