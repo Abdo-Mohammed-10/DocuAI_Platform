@@ -35,6 +35,36 @@ services:
       timeout: 5s
       retries: 5
 
+  celery_worker:
+    build:
+      context: .
+      dockerfile: services/ingestion_service/Dockerfile
+    container_name: smart_doc_celery
+    command: celery -A shared.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+
+    volumes:
+      - .:/app
+    working_dir: /app
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+  
+  flower:
+    image: mher/flower:2.0
+    container_name: smart_doc_flower
+    command: celery --broker=redis://redis:6379/0 flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+
+
+
   # nginx
   #   image: nginx:alpine
   #   container_name: DocuAI_nginx
