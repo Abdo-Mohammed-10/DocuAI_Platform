@@ -4,7 +4,11 @@ from services.ingestion_service.processors.pdf_processor import PageContent
 
 def test_chunker_basic():
     pages = [
-        PageContent(page_number=1, text=" ".join([f"word{i}" for i in range(600)]), char_count=3000)
+        PageContent(
+            page_number=1,
+            text=" ".join([f"word{i}" for i in range(600)]),
+            char_count=3000,
+        )
     ]
     chunker = TextChunker(chunk_size=500, overlap=50)
     chunks = chunker.chunk_pages(pages)
@@ -15,9 +19,7 @@ def test_chunker_basic():
 
 
 def test_chunker_token_count():
-    pages = [
-        PageContent(page_number=1, text="hello world foo bar", char_count=19)
-    ]
+    pages = [PageContent(page_number=1, text="hello world foo bar", char_count=19)]
     chunker = TextChunker(chunk_size=500, overlap=0)
     chunks = chunker.chunk_pages(pages)
 
