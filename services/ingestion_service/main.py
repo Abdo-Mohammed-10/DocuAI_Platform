@@ -1,13 +1,17 @@
 import uuid
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from shared.db.session import get_db
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from services.api_gateway.schemas.document import (
+    DocumentResponse,
+    DocumentsUploadedResponse,
+)
+from services.ingestion_service.tasks.celery_tasks import process_document
 from shared.db.models.document import Document, DocumentStatus
 from shared.db.models.user import User
-from services.ingestion_service.tasks.celery_tasks import process_document
-from services.api_gateway.schemas.document import DocumentsUploadedResponse, DocumentResponse
+from shared.db.session import get_db
 
 app = FastAPI(title="Ingestion Service", version="0.1.0")
 
@@ -33,7 +37,7 @@ async def upload_document(
     result = await db.execute(select(User).limit(1))
     user = result.scalar_one_or_none()
     if not user:
-        # create demo user 
+        # create demo user
         user = User(
             email="abdo@gmail.com",
             hashed_password="abdo123",
@@ -66,9 +70,7 @@ async def get_document(
     document_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Document).where(Document.id == document_id)
-    )
+    result = await db.execute(select(Document).where(Document.id == document_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
