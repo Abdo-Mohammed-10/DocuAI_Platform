@@ -9,7 +9,7 @@ class TextChunk:
     page_number: int
     chunk_index: int
     token_count: int
-
+    embedding: str
 
 class TextChunker:
     def __init__(self, chunk_size: int = 500, overlap: int = 50):
@@ -35,6 +35,7 @@ class TextChunker:
                         chunk_index=chunk_index,
                         page_number=page.page_number,
                         token_count=len(chunk_words),
+                        embedding="[]",
                     )
                 )
 

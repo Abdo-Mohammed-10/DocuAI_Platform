@@ -14,14 +14,11 @@ from shared.db.session import AsyncSessionLocal
 
 logger = get_task_logger(__name__)
 
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
 def run_async(coro):
-    loop = asyncio.new_event_loop()
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
-
+    return loop.run_until_complete(coro)
 
 @celery_app.task(
     bind=True,
@@ -32,55 +29,85 @@ def run_async(coro):
 def process_document(self, document_id: str, file_bytes_hex: str):
     try:
         logger.info(f"Processing document: {document_id}")
+
         file_bytes = bytes.fromhex(file_bytes_hex)
-        run_async(_process_document_async(document_id, file_bytes))
+
+        run_async(
+            _process_document_async(
+                document_id=document_id,
+                file_bytes=file_bytes,
+            )
+        )
+
         logger.info(f"Document processed successfully: {document_id}")
 
     except Exception as exc:
         logger.error(f"Failed to process document {document_id}: {exc}")
+
         run_async(
             _update_document_status(
-                document_id,
-                DocumentStatus.FAILED,
-                str(exc),
+                document_id=document_id,
+                status=DocumentStatus.FAILED,
+                error=str(exc),
             )
         )
 
         raise self.retry(exc=exc)
 
 
-async def _process_document_async(document_id: str, file_bytes: bytes):
+async def _process_document_async(
+    document_id: str,
+    file_bytes: bytes,
+):
     async with AsyncSessionLocal() as db:
-        await _update_status(db, document_id, DocumentStatus.PROCESSING)
+        await _update_status(
+            db=db,
+            document_id=document_id,
+            status=DocumentStatus.PROCESSING,
+        )
 
-        # extract pages
+        # Extract pages from PDF
         processor = PDFProcessor()
         pages = processor.extract_pages(file_bytes)
-        logger.info(f"Extracted {len(pages)} pages from document {document_id}")
 
-        # chunk pages
+        logger.info(
+            f"Extracted {len(pages)} pages from document {document_id}"
+        )
+
+        # Chunk text
         chunker = TextChunker(chunk_size=500, overlap=50)
         chunks = chunker.chunk_pages(pages)
+
         logger.info(f"Created {len(chunks)} chunks")
 
-        # save chunks
+        # Save chunks
         doc_uuid = uuid.UUID(document_id)
-        chunk_objs = [
+
+        chunk_objects = [
             Chunk(
                 document_id=doc_uuid,
-                content=c.content,
-                chunk_index=c.chunk_index,
-                page_number=c.page_number,
-                token_count=c.token_count,
+                content=chunk.content,
+                chunk_index=chunk.chunk_index,
+                page_number=chunk.page_number,
+                token_count=chunk.token_count,
+                embedding=chunk.embedding,
             )
-            for c in chunks
+            for chunk in chunks
         ]
 
-        db.add_all(chunk_objs)
-        await _update_status(db, document_id, DocumentStatus.DONE)
+        db.add_all(chunk_objects)
+
+        await _update_status(
+            db=db,
+            document_id=document_id,
+            status=DocumentStatus.DONE,
+        )
+
         await db.commit()
+
         logger.info(
-            f"Saved {len(chunks)} chunks to database for document {document_id}"
+            f"Saved {len(chunks)} chunks to database "
+            f"for document {document_id}"
         )
 
 
@@ -88,20 +115,34 @@ async def _update_status(
     db: AsyncSession,
     document_id: str,
     status: DocumentStatus,
-    error: str = None,
+    error: str | None = None,
 ):
     result = await db.execute(
-        select(Document).where(Document.id == uuid.UUID(document_id))
+        select(Document).where(
+            Document.id == uuid.UUID(document_id)
+        )
     )
 
-    doc = result.scalar_one_or_none()
-    if doc:
-        doc.status = status
+    document = result.scalar_one_or_none()
+
+    if document:
+        document.status = status
+
         if error:
-            doc.error_message = error
+            document.error_message = error
 
 
-async def _update_document_status(document_id: str, status: DocumentStatus, error: str):
+async def _update_document_status(
+    document_id: str,
+    status: DocumentStatus,
+    error: str | None = None,
+):
     async with AsyncSessionLocal() as db:
-        await _update_status(db, document_id, status, error)
+        await _update_status(
+            db=db,
+            document_id=document_id,
+            status=status,
+            error=error,
+        )
+
         await db.commit()
