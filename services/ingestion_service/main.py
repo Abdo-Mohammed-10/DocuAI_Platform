@@ -15,6 +15,9 @@ from shared.db.session import get_db
 
 app = FastAPI(title="Ingestion Service", version="0.1.0")
 
+@app.get("/")
+async def root():
+    return {"message": "DocuAI API running"}
 
 @app.get("/health")
 async def health():
