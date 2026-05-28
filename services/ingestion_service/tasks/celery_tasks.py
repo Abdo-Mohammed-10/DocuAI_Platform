@@ -17,8 +17,10 @@ logger = get_task_logger(__name__)
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 
+
 def run_async(coro):
     return loop.run_until_complete(coro)
+
 
 @celery_app.task(
     bind=True,
@@ -70,9 +72,7 @@ async def _process_document_async(
         processor = PDFProcessor()
         pages = processor.extract_pages(file_bytes)
 
-        logger.info(
-            f"Extracted {len(pages)} pages from document {document_id}"
-        )
+        logger.info(f"Extracted {len(pages)} pages from document {document_id}")
 
         # Chunk text
         chunker = TextChunker(chunk_size=500, overlap=50)
@@ -106,8 +106,7 @@ async def _process_document_async(
         await db.commit()
 
         logger.info(
-            f"Saved {len(chunks)} chunks to database "
-            f"for document {document_id}"
+            f"Saved {len(chunks)} chunks to database " f"for document {document_id}"
         )
 
 
@@ -118,9 +117,7 @@ async def _update_status(
     error: str | None = None,
 ):
     result = await db.execute(
-        select(Document).where(
-            Document.id == uuid.UUID(document_id)
-        )
+        select(Document).where(Document.id == uuid.UUID(document_id))
     )
 
     document = result.scalar_one_or_none()

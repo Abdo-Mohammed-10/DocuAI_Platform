@@ -1,6 +1,7 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from services.nlp_service.pipelines.rag_pipeline import RAGPipeline
 from shared.db.models.chunk import Chunk

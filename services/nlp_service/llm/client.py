@@ -1,7 +1,7 @@
 from functools import lru_cache
 
-from langchain_openai import ChatOpenAI
 from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_openai import ChatOpenAI
 
 from shared.config import settings
 
@@ -16,8 +16,7 @@ def get_llm(temperature: float = 0.0) -> ChatOpenAI:
         max_retries=3,
     )
 
+
 @lru_cache(maxsize=1)
 def get_embeddings() -> HuggingFaceEmbeddings:
-    return HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
-    )
+    return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")

@@ -1,12 +1,13 @@
-import uuid
 import time
+import uuid
 from dataclasses import dataclass
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from shared.db.models.chunk import Chunk
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from services.nlp_service.llm.client import get_llm
 from services.nlp_service.llm.prompt_templates import RAG_PROMPT
+from shared.db.models.chunk import Chunk
 
 
 @dataclass
@@ -43,16 +44,17 @@ class RAGPipeline:
 
         relevant = self._select_relevant(question, chunks)
 
-        context = "\n\n---\n\n".join([
-            f"[Page {c.page_number}]: {c.content}"
-            for c in relevant
-        ])
+        context = "\n\n---\n\n".join(
+            [f"[Page {c.page_number}]: {c.content}" for c in relevant]
+        )
 
         chain = RAG_PROMPT | self.llm
-        response = await chain.ainvoke({
-            "context": context,
-            "question": question,
-        })
+        response = await chain.ainvoke(
+            {
+                "context": context,
+                "question": question,
+            }
+        )
 
         latency = (time.time() - start) * 1000
 
@@ -90,7 +92,6 @@ class RAGPipeline:
         question: str,
         chunks: list[Chunk],
     ) -> list[Chunk]:
-        
         q_words = set(question.lower().split())
 
         def score(chunk: Chunk) -> int:
@@ -98,4 +99,4 @@ class RAGPipeline:
             return len(q_words & words)
 
         ranked = sorted(chunks, key=score, reverse=True)
-        return ranked[:self.top_k]
+        return ranked[: self.top_k]

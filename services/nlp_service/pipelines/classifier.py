@@ -1,15 +1,13 @@
 import uuid
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from shared.db.models.chunk import Chunk
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from services.nlp_service.llm.client import get_llm
 from services.nlp_service.llm.prompt_templates import CLASSIFY_PROMPT
+from shared.db.models.chunk import Chunk
 
-VALID_CATEGORIES = {
-    "invoice", "contract", "report",
-    "research_paper", "legal", "other"
-}
+VALID_CATEGORIES = {"invoice", "contract", "report", "research_paper", "legal", "other"}
 
 
 class DocumentClassifier:

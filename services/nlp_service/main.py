@@ -1,15 +1,16 @@
 import uuid
-from fastapi import FastAPI, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from shared.db.session import get_db
-from shared.db.models.document import Document, DocumentStatus
+from fastapi import Depends, FastAPI, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from mlops.mlflow_tracker import LLMTracker
+from services.nlp_service.pipelines.classifier import DocumentClassifier
 from services.nlp_service.pipelines.rag_pipeline import RAGPipeline
 from services.nlp_service.pipelines.summarizer import Summarizer
-from services.nlp_service.pipelines.classifier import DocumentClassifier
-from mlops.mlflow_tracker import LLMTracker
+from shared.db.models.document import Document, DocumentStatus
+from shared.db.session import get_db
 
 app = FastAPI(title="NLP Service", version="0.1.0")
 
@@ -41,9 +42,7 @@ async def get_ready_document(
     document_id: uuid.UUID,
     db: AsyncSession,
 ) -> Document:
-    result = await db.execute(
-        select(Document).where(Document.id == document_id)
-    )
+    result = await db.execute(select(Document).where(Document.id == document_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
