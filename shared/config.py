@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     aws_region: str = "us-east-1"
     aws_s3_bucket: str = "DocuAI-Bucket"
 
-    openai_api_key: str = ""
+    openai_api_key: str = "YourOpenAIApiKeyHere"
 
 
 settings = Settings()

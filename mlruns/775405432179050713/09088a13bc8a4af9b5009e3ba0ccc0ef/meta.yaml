@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/09088a13bc8a4af9b5009e3ba0ccc0ef/artifacts
+end_time: 1780007686275
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: 09088a13bc8a4af9b5009e3ba0ccc0ef
+run_name: beautiful-steed-262
+run_uuid: 09088a13bc8a4af9b5009e3ba0ccc0ef
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1780007686240
+status: 3
+tags: []
+user_id: abdo
