@@ -11,6 +11,10 @@ from services.nlp_service.pipelines.rag_pipeline import RAGPipeline
 from services.nlp_service.pipelines.summarizer import Summarizer
 from shared.db.models.document import Document, DocumentStatus
 from shared.db.session import get_db
+from shared.langsmith_setup import init_langsmith
+from services.nlp_service.pipelines.agentic_rag import rag_graph
+
+init_langsmith()
 
 app = FastAPI(title="NLP Service", version="0.1.0")
 
@@ -65,6 +69,22 @@ async def ask_question(
     db: AsyncSession = Depends(get_db),
 ):
     await get_ready_document(req.document_id, db)
+
+    start = time.time()
+
+    # LangGraph pipeline
+    final_state = await rag_graph.ainvoke({
+        "question":    req.question,
+        "document_id": str(req.document_id),
+        "chunks":      [],
+        "context":     "",
+        "answer":      "",
+        "is_relevant": False,
+        "retry_count": 0,
+        "db":          db,
+    })
+
+    latency = round((time.time() - start) * 1000, 2)
 
     result = await rag.run(
         question=req.question,
