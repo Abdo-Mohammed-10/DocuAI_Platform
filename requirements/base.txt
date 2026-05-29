@@ -28,3 +28,4 @@ mlflow==2.14.1
 tenacity==8.4.1
 langsmith==0.1.83
 langgraph==0.1.19
+grandalf
