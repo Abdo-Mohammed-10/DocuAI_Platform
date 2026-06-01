@@ -36,7 +36,7 @@ class Settings(BaseSettings):
             f"postgresql+asyncpg://"
             f"{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}"
-            f"/{self.postgres_db}"
+            f"/docuai_db"
         )
 
     redis_host: str = "localhost"
