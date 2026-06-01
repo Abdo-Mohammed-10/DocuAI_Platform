@@ -56,59 +56,38 @@ def process_document(self, document_id: str, file_bytes_hex: str):
 
         raise self.retry(exc=exc)
 
-
-async def _process_document_async(
-    document_id: str,
-    file_bytes: bytes,
-):
+async def _process_document_async(document_id: str, file_bytes: bytes):
     async with AsyncSessionLocal() as db:
-        await _update_status(
-            db=db,
-            document_id=document_id,
-            status=DocumentStatus.PROCESSING,
-        )
+        await _update_status(db, document_id, DocumentStatus.PROCESSING)
 
-        # Extract pages from PDF
         processor = PDFProcessor()
         pages = processor.extract_pages(file_bytes)
 
-        logger.info(f"Extracted {len(pages)} pages from document {document_id}")
-
-        # Chunk text
         chunker = TextChunker(chunk_size=500, overlap=50)
         chunks = chunker.chunk_pages(pages)
 
-        logger.info(f"Created {len(chunks)} chunks")
-
-        # Save chunks
         doc_uuid = uuid.UUID(document_id)
-
-        chunk_objects = [
+        chunk_objs = [
             Chunk(
                 document_id=doc_uuid,
-                content=chunk.content,
-                chunk_index=chunk.chunk_index,
-                page_number=chunk.page_number,
-                token_count=chunk.token_count,
-                embedding=chunk.embedding,
+                content=c.content,
+                chunk_index=c.chunk_index,
+                page_number=c.page_number,
+                token_count=c.token_count,
             )
-            for chunk in chunks
+            for c in chunks
         ]
+        db.add_all(chunk_objs)
+        await db.flush()
 
-        db.add_all(chunk_objects)
+        from services.vector_service.stores.pgvector_store import PGVectorStore
+        vector_store = PGVectorStore()
+        embedded = await vector_store.save_embeddings(doc_uuid, db)
+        logger.info(f"Embedded {embedded} chunks")
+        
 
-        await _update_status(
-            db=db,
-            document_id=document_id,
-            status=DocumentStatus.DONE,
-        )
-
+        await _update_status(db, document_id, DocumentStatus.DONE)
         await db.commit()
-
-        logger.info(
-            f"Saved {len(chunks)} chunks to database " f"for document {document_id}"
-        )
-
 
 async def _update_status(
     db: AsyncSession,

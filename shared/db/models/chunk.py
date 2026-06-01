@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from pgvector.sqlalchemy import Vector
 import uuid
 from typing import TYPE_CHECKING
 
@@ -11,6 +11,8 @@ from shared.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from shared.db.models.document import Document
+
+EMBEDDING_DIM = 384  
 
 
 class Chunk(Base, TimestampMixin):
@@ -26,11 +28,15 @@ class Chunk(Base, TimestampMixin):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     page_number: Mapped[int] = mapped_column(Integer, nullable=True)
     token_count: Mapped[int] = mapped_column(Integer, nullable=True)
+
     embedding: Mapped[list[float]] = mapped_column(
-        String, nullable=False
-    )  # Store as JSON string
+        Vector(EMBEDDING_DIM), nullable=True
+    )
 
-    # Relationships
-    document: Mapped["Document"] = relationship("Document", back_populates="chunks")
+    document: Mapped["Document"] = relationship(
+        "Document", back_populates="chunks"
+    )
 
-    __table_args__ = (Index("idx_chunks_document_id", "document_id"),)
+    __table_args__ = (
+        Index("ix_chunks_document_id", "document_id"),
+    )

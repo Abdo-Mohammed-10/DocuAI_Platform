@@ -22,42 +22,46 @@ class RAGState(TypedDict):
     db:             AsyncSession
 
 
-# Nodes 
 async def retrieve_chunks(state: RAGState) -> RAGState:
-    db = state["db"]
+
+    from services.vector_service.stores.pgvector_store import PGVectorStore
+
+    db     = state["db"]
     doc_id = uuid.UUID(state["document_id"])
-    q_words = set(state["question"].lower().split())
+    store  = PGVectorStore()
 
-    result = await db.execute(
-        select(Chunk)
-        .where(Chunk.document_id == doc_id)
-        .order_by(Chunk.chunk_index)
+    chunks_data = await store.similarity_search(
+        query=state["question"],
+        document_id=doc_id,
+        db=db,
+        top_k=5,
     )
-    all_chunks = result.scalars().all()
 
-    # keyword scoring
-    def score(c: Chunk) -> int:
-        return len(q_words & set(c.content.lower().split()))
-
-    ranked = sorted(all_chunks, key=score, reverse=True)[:5]
-
-    chunks_data = [
-        {
-            "chunk_index": c.chunk_index,
-            "page_number": c.page_number,
-            "content": c.content,
-            "preview": c.content[:200],
-        }
-        for c in ranked
-    ]
+    if not chunks_data:
+        from sqlalchemy import select
+        result = await db.execute(
+            select(Chunk)
+            .where(Chunk.document_id == doc_id)
+            .limit(5)
+        )
+        raw = result.scalars().all()
+        chunks_data = [
+            {
+                "chunk_index": c.chunk_index,
+                "page_number": c.page_number,
+                "content":     c.content,
+                "preview":     c.content[:200],
+                "similarity":  0.0,
+            }
+            for c in raw
+        ]
 
     context = "\n\n---\n\n".join([
-        f"[Page {c['page_number']}]: {c['content']}"
+        f"[Page {c['page_number']}] (similarity: {c.get('similarity', 0):.2f}):\n{c['content']}"
         for c in chunks_data
     ])
 
     return {**state, "chunks": chunks_data, "context": context}
-
 
 async def grade_relevance(state: RAGState) -> RAGState:
   
