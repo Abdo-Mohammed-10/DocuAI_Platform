@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     APP_ENV: str = "development"
     SECRET_KEY: str = "DocuAISecretKey"
-
+    internal_api_key: str = "DocuAIInternalKey"
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_db: str = "DocuAI"

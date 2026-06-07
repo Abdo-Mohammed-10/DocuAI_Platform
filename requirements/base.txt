@@ -30,6 +30,13 @@ tenacity==8.4.1
 langsmith==0.1.83
 langgraph==0.1.19
 pgvector==0.3.2
-sentence-transformers==3.0.1
 numpy==1.26.4
 grandalf
+bcrypt==4.0.1
+structlog
+pybreaker
+pyclamd
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
+httpx==0.27.0

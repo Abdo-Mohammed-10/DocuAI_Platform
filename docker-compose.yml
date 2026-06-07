@@ -116,6 +116,14 @@ services:
       - "5000:5000"
     volumes:
       - mlflow_data:/mlflow
+      
+  clamav:
+    image: clamav/clamav:latest
+    ports:
+      - "3310:3310"
+  
+  minio:
+    image: minio/minio
 
 volumes:
   postgres_data:

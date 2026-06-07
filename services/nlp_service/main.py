@@ -13,11 +13,12 @@ from shared.db.models.document import Document, DocumentStatus
 from shared.db.session import get_db
 from shared.langsmith_setup import init_langsmith
 from services.nlp_service.pipelines.agentic_rag import rag_graph
+from shared.circuit_breaker import breaker
 
 init_langsmith()
-
 app = FastAPI(title="NLP Service", version="0.1.0")
-
+app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(RequestIDMiddleware)
 rag = RAGPipeline(top_k=5)
 summarizer = Summarizer()
 classifier = DocumentClassifier()
@@ -41,7 +42,7 @@ class SummaryRequest(BaseModel):
     document_id: uuid.UUID
     language: str = "English"
 
-
+@breaker
 async def get_ready_document(
     document_id: uuid.UUID,
     db: AsyncSession,
@@ -109,6 +110,7 @@ async def ask_question(
 
 
 @app.post("/summarize")
+@breaker
 async def summarize(
     req: SummaryRequest,
     db: AsyncSession = Depends(get_db),
@@ -119,6 +121,7 @@ async def summarize(
 
 
 @app.post("/classify")
+@breaker
 async def classify(
     document_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
