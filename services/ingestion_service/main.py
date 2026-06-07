@@ -31,27 +31,38 @@ async def upload_document(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    # Validate
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    # Validate filename
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are supported",
+        )
 
+    # Read file
     file_bytes = await file.read()
-    if len(file_bytes) > 50 * 1024 * 1024:  # 50MB limit
-        raise HTTPException(status_code=400, detail="File too large (max 50MB)")
 
+    # Validate size
+    if len(file_bytes) > 50 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail="File too large (max 50MB)",
+        )
+
+    # Get or create demo user
     result = await db.execute(select(User).limit(1))
     user = result.scalar_one_or_none()
+
     if not user:
-        # create demo user
         user = User(
             email="abdo@gmail.com",
-            hashed_password="abdo123",
+            hashed_password="hashed_password_here",
             full_name="abdo mohamed",
         )
+
         db.add(user)
         await db.flush()
 
-    # document record
+    # Create document
     doc = Document(
         owner_id=user.id,
         filename=file.filename,
@@ -59,13 +70,14 @@ async def upload_document(
         status=DocumentStatus.PENDING,
         s3_key=f"documents/{uuid.uuid4()}/{file.filename}",
     )
+
     db.add(doc)
-    await db.flush()
+
+    await db.commit()
     await db.refresh(doc)
 
-    doc_id = str(doc.id)
-
-    process_document.delay(doc_id, file_bytes.hex())
+    # Send to celery
+    process_document.delay(str(doc.id), file_bytes.hex())
 
     return doc
 
@@ -75,14 +87,27 @@ async def get_document(
     document_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Document).where(Document.id == document_id))
+    result = await db.execute(
+        select(Document).where(Document.id == document_id)
+    )
+
     doc = result.scalar_one_or_none()
+
     if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found",
+        )
+
     return doc
 
 
 @app.get("/documents", response_model=list[DocumentResponse])
-async def list_documents(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Document).order_by(Document.created_at.desc()))
+async def list_documents(
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Document).order_by(Document.created_at.desc())
+    )
+
     return result.scalars().all()

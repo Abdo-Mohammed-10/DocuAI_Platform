@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 from services.ingestion_service.processors.pdf_processor import PageContent
 
-
 @dataclass
 class TextChunk:
     content: str
@@ -10,7 +9,6 @@ class TextChunk:
     chunk_index: int
     token_count: int
     embedding: str
-
 
 class TextChunker:
     def __init__(self, chunk_size: int = 500, overlap: int = 50):
