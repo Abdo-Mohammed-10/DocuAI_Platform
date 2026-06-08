@@ -7,21 +7,24 @@ from shared.db.models.user import User
 from shared.db.models.document import Document
 from shared.db.models.chat_session import ChatMessage
 from services.api_gateway.middleware.auth import get_current_user
+from services.api_gateway.schemas.analytics import AnalyticsOverviewResponse
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
-
-@router.get("/overview")
+@router.get(
+    "/overview",
+    response_model=AnalyticsOverviewResponse
+)
 async def overview(
     db:           AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # عدد الـ documents
+    # documents
     doc_count = await db.execute(
         select(func.count()).where(Document.owner_id == current_user.id)
     )
 
-    # عدد الـ messages
+    # messages
     msg_count = await db.execute(
         select(func.count(ChatMessage.id))
     )
