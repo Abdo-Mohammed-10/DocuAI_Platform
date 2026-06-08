@@ -22,7 +22,7 @@ class TokenPair:
 # ── Config 
 ALGORITHM      = "HS256"
 ACCESS_EXPIRE  = 60        # minutes
-REFRESH_EXPIRE = 60 * 24 * 7  # 7 days
+REFRESH_EXPIRE = 60 * 24 * 1  # 1 days
 
 pwd_ctx    = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2     = OAuth2PasswordBearer(tokenUrl="/auth/login")
