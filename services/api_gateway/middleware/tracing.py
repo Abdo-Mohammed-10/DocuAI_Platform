@@ -3,7 +3,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        correlation_id = str(uuid.uuid4())
+
+        correlation_id = (
+            request.headers.get("X-Correlation-ID")
+            or str(uuid.uuid4())
+        )
 
         request.state.correlation_id = correlation_id
 
