@@ -19,10 +19,6 @@ _redis: Optional[aioredis.Redis] = None
 
 
 async def get_redis() -> aioredis.Redis:
-    """
-    Reuse one Redis connection pool
-    بدل ما نفتح connection جديد كل request
-    """
     global _redis
 
     if _redis is None:
@@ -41,11 +37,7 @@ def get_client_identifier(
     request: Request,
     current_user: User | None = None,
 ) -> str:
-    """
-    الأولوية للـ authenticated user
-    fallback = client IP
-    """
-
+    
     # authenticated user
     if current_user:
         return f"user:{current_user.id}"
