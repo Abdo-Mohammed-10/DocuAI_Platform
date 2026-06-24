@@ -16,7 +16,7 @@ class VirusScanner:
         
         # 1. size check
         if len(file_bytes) > self.MAX_SIZE_BYTES:
-            return False, f"File too large: {len(file_bytes) / 1024 / 1024:.1f}MB (max 50MB)"
+            return False, f"File too large: {len(file_bytes) / 1024 / 1024:.1f}MB (max 50MB)"  # noqa: E501
 
         # 2. magic bytes check 
         if not file_bytes.startswith(b"%PDF"):

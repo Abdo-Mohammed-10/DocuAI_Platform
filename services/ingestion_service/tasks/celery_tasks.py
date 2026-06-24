@@ -1,6 +1,6 @@
 import asyncio
-import uuid
 import time
+import uuid
 
 from celery.utils.log import get_task_logger
 from sqlalchemy import update
@@ -90,7 +90,7 @@ async def _process_document_async(document_id: str, file_bytes: bytes):
 
 
 # ── DB helpers ────────────────────────────────────────────
-async def _set_status(db: AsyncSession, document_id: str, status: DocumentStatus, error: str = None):
+async def _set_status(db: AsyncSession, document_id: str, status: DocumentStatus, error: str = None):  # noqa: E501
     values = {"status": status}
     if error:
         values["error_message"] = error

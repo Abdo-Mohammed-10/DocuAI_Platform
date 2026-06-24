@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,11 +10,10 @@ from services.api_gateway.schemas.document import (
     DocumentUploadResponse,
 )
 from services.ingestion_service.tasks.celery_tasks import process_document
+from services.ingestion_service.virus_scanner import VirusScanner
 from shared.db.models.document import Document, DocumentStatus
 from shared.db.models.user import User
 from shared.db.session import get_db
-from services.ingestion_service.virus_scanner import VirusScanner
-from prometheus_fastapi_instrumentator import Instrumentator
 
 scanner = VirusScanner()
 

@@ -1,7 +1,6 @@
 import os
-import mlflow
 
-from services.nlp_service.pipelines.rag_pipeline import RAGResult
+import mlflow
 
 MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 
@@ -28,7 +27,7 @@ class LLMTracker:
                     "latency_ms": result.latency_ms or 0,
                     "input_tokens": result.input_tokens or 0,
                     "output_tokens": result.output_tokens or 0,
-                    "total_tokens": (result.input_tokens or 0) + (result.output_tokens or 0),
+                    "total_tokens": (result.input_tokens or 0) + (result.output_tokens or 0),  # noqa: E501
                     "estimated_cost_usd": (
                         (result.input_tokens or 0) * 0.00000015
                         + (result.output_tokens or 0) * 0.0000006

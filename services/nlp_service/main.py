@@ -1,25 +1,24 @@
-import uuid
 import time
-from fastapi import FastAPI, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from prometheus_fastapi_instrumentator import Instrumentator
+import uuid
 
-from shared.db.session import get_db
-from shared.db.models.document import Document, DocumentStatus
-from shared.langsmith_setup import init_langsmith
-from services.nlp_service.pipelines.agentic_rag import rag_graph
-from services.nlp_service.pipelines.summarizer import Summarizer
-from services.nlp_service.pipelines.classifier import DocumentClassifier
+from fastapi import Depends, FastAPI, HTTPException
+from prometheus_fastapi_instrumentator import Instrumentator
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from mlops.mlflow_tracker import LLMTracker
 from services.analytics_service.metrics.prometheus_metrics import (
-    llm_requests_total,
     llm_latency_seconds,
-    llm_tokens_total,
-    llm_cost_usd_total,
+    llm_requests_total,
     rag_retries_total,
 )
+from services.nlp_service.pipelines.agentic_rag import rag_graph
+from services.nlp_service.pipelines.classifier import DocumentClassifier
+from services.nlp_service.pipelines.summarizer import Summarizer
+from shared.db.models.document import Document, DocumentStatus
+from shared.db.session import get_db
+from shared.langsmith_setup import init_langsmith
 
 init_langsmith()
 

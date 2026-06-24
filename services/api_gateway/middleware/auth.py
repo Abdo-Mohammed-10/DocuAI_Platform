@@ -1,5 +1,7 @@
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -12,9 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.config import settings
 from shared.db.models.user import User
 from shared.db.session import get_db
-import hashlib
-from passlib.context import CryptContext
-from uuid import UUID
 
 # Config 
 ALGORITHM = "HS256"

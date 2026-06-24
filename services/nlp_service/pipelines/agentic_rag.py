@@ -56,7 +56,7 @@ async def retrieve_chunks(state: RAGState) -> RAGState:
 
     context = "\n\n---\n\n".join(
         [
-            f"[Page {c['page_number']}] (similarity: {c.get('similarity', 0):.2f}):\n{c['content']}"
+            f"[Page {c['page_number']}] (similarity: {c.get('similarity', 0):.2f}):\n{c['content']}"  # noqa: E501
             for c in chunks_data
         ]
     )

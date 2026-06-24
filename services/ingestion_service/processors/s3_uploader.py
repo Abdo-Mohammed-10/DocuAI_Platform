@@ -1,6 +1,8 @@
 import boto3
 from botocore.exceptions import ClientError
+
 from shared.config import settings
+
 
 class S3Uploader:
     def __init__(self):

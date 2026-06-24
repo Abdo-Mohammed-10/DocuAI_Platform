@@ -1,10 +1,11 @@
 from services.analytics_service.metrics.prometheus_metrics import (
-    llm_requests_total,
-    llm_latency_seconds,
-    rag_retries_total,
-    documents_processed_total,
     chunks_created_total,
+    documents_processed_total,
+    llm_latency_seconds,
+    llm_requests_total,
+    rag_retries_total,
 )
+
 
 def test_llm_requests_counter_increments():
     before = llm_requests_total.labels(

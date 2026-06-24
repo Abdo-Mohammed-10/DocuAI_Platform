@@ -1,13 +1,13 @@
-import uuid
 import time
+import uuid
 
 from fastapi import Depends, FastAPI, HTTPException
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from services.vector_service.stores.pgvector_store import PGVectorStore
 from shared.db.session import get_db
-from prometheus_fastapi_instrumentator import Instrumentator
 
 app = FastAPI(title="Vector Service", version="0.1.0")
 Instrumentator().instrument(app).expose(app)
@@ -72,7 +72,7 @@ async def semantic_search(
         top_k=req.top_k,
     )
 
-    latency = round(time.time() - start, 3)
+    _ = round(time.time() - start, 3)
 
     if not results:
         raise HTTPException(status_code=404, detail="No chunks found for this document")

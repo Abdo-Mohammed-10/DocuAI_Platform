@@ -31,7 +31,7 @@ async def upload_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    file_bytes = await file.read()
+    await file.read()
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(

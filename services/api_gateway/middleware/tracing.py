@@ -1,10 +1,8 @@
-import uuid
-from fastapi import Request, Response
-import time
 import logging
-from fastapi import Request
+import time
+
+from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
 
 logger = logging.getLogger("api_gateway.tracing")
 

@@ -4,12 +4,6 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from shared.config import settings
 
-from functools import lru_cache
-
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-
-from shared.config import settings
-
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  
 
 

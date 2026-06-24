@@ -1,8 +1,10 @@
+import uuid
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from shared.tracing import generate_request_id
 from starlette.responses import Response
-import uuid
+
+
 class RequestIDMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))

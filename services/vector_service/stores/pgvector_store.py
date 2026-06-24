@@ -39,7 +39,7 @@ class PGVectorStore:
         top_k: int = 5,
     ) -> list[dict]:
         query_embedding = self.encoder.encode(query)
-        # نحط الـ vector مباشرة في الـ SQL عشان asyncpg مش بيدعم named params مع ::vector
+        # نحط الـ vector مباشرة في الـ SQL عشان asyncpg مش بيدعم named params مع ::vector  # noqa: E501
         query_vec_str = str(query_embedding)
 
         stmt = text(f"""

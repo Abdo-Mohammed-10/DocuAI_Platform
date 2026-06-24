@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
-from services.api_gateway.routers import auth, documents, chat, analytics
 from services.api_gateway.middleware.request_id import RequestIDMiddleware
 from services.api_gateway.middleware.tracing import TracingMiddleware
-from prometheus_fastapi_instrumentator import Instrumentator
+from services.api_gateway.routers import analytics, auth, chat, documents
 
 
 @asynccontextmanager

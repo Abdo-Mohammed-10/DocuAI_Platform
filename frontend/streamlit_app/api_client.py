@@ -68,7 +68,7 @@ class APIClient:
             try:
                 return r.json(), r.status_code
             except Exception:
-                return {"detail": f"Server error ({r.status_code}): {r.text[:200]}"}, r.status_code
+                return {"detail": f"Server error ({r.status_code}): {r.text[:200]}"}, r.status_code  # noqa: E501
         except requests.exceptions.Timeout:
             return {"detail": "Request timed out."}, 504
         except requests.exceptions.ConnectionError:
