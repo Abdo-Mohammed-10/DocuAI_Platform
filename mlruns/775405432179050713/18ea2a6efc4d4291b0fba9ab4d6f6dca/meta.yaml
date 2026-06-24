@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/18ea2a6efc4d4291b0fba9ab4d6f6dca/artifacts
+end_time: 1781935457795
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: 18ea2a6efc4d4291b0fba9ab4d6f6dca
+run_name: peaceful-lark-26
+run_uuid: 18ea2a6efc4d4291b0fba9ab4d6f6dca
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781935457766
+status: 3
+tags: []
+user_id: abdo

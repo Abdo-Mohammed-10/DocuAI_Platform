@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/8eb2a410507d47c7bf41408af5adf82b/artifacts
+end_time: 1781938603979
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: 8eb2a410507d47c7bf41408af5adf82b
+run_name: languid-asp-281
+run_uuid: 8eb2a410507d47c7bf41408af5adf82b
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781938603968
+status: 3
+tags: []
+user_id: abdo

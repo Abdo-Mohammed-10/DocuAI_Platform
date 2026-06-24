@@ -25,3 +25,9 @@ infrastructure/*.tfstate.backup
 
 # OS
 .DS_Store
+
+# terraform
+infrastructure/.terraform/
+infrastructure/*.tfstate
+infrastructure/*.tfstate.backup
+infrastructure/*.tfvars

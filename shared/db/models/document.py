@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from enum import Enum
 from typing import TYPE_CHECKING
 
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,11 +15,14 @@ if TYPE_CHECKING:
     from shared.db.models.user import User
 
 
-class DocumentStatus(str, Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    DONE = "done"
-    FAILED = "failed"
+import enum
+
+
+class DocumentStatus(str, enum.Enum):
+    pending = "pending"
+    processing = "processing"
+    done = "done"
+    failed = "failed"
 
 
 class Document(Base, TimestampMixin):
@@ -34,8 +37,10 @@ class Document(Base, TimestampMixin):
     filename: Mapped[str] = mapped_column(String(500), nullable=False)
     s3_key: Mapped[str] = mapped_column(String(1000), nullable=True)
     file_size: Mapped[int] = mapped_column(Integer, nullable=True)
-    status: Mapped[str] = mapped_column(
-        String(50), default=DocumentStatus.PENDING, nullable=False
+    status: Mapped[DocumentStatus] = mapped_column(
+        SAEnum(DocumentStatus, name="document_status"),
+        default=DocumentStatus.pending,
+        nullable=False,
     )
     error_message: Mapped[str] = mapped_column(Text, nullable=True)
 

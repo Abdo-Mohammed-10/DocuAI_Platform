@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/f9f6dffc280c4b91aaced54aa0036683/artifacts
+end_time: 1781938982419
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: f9f6dffc280c4b91aaced54aa0036683
+run_name: worried-gnat-446
+run_uuid: f9f6dffc280c4b91aaced54aa0036683
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781938982379
+status: 3
+tags: []
+user_id: abdo

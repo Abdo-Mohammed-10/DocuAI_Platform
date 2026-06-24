@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/67f1425807634a1b987b0e3d21779353/artifacts
+end_time: 1781935552248
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: 67f1425807634a1b987b0e3d21779353
+run_name: skillful-crow-790
+run_uuid: 67f1425807634a1b987b0e3d21779353
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781935552218
+status: 3
+tags: []
+user_id: abdo

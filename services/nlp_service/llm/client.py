@@ -1,17 +1,16 @@
 from functools import lru_cache
 
-from langchain_openai import OpenAIEmbeddings
-
-
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from shared.config import settings
 
-embeddings = OpenAIEmbeddings(
-    model="sentence-transformers/paraphrase-minilm-l6-v2",
-    api_key=settings.openai_api_key,
-    base_url="https://openrouter.ai/api/v1"
-)
+from functools import lru_cache
+
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
+from shared.config import settings
+
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  
 
 
 @lru_cache(maxsize=1)
@@ -28,7 +27,7 @@ def get_llm(temperature: float = 0.0) -> ChatOpenAI:
 @lru_cache(maxsize=1)
 def get_embeddings() -> OpenAIEmbeddings:
     return OpenAIEmbeddings(
-        model="sentence-transformers/paraphrase-minilm-l6-v2",
+        model=EMBEDDING_MODEL,
         api_key=settings.openai_api_key,
-        base_url="https://openrouter.ai/api/v1"
+        base_url="https://openrouter.ai/api/v1",
     )

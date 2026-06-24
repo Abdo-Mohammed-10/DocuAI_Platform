@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docuai-config
+  namespace: docuai
+data:
+  APP_ENV:        "production"
+  POSTGRES_HOST:  "postgres-service"
+  POSTGRES_PORT:  "5432"
+  POSTGRES_DB:    "docuai_db"
+  POSTGRES_USER:  "postgres"
+  REDIS_HOST:     "redis-service"
+  REDIS_PORT:     "6379"
+  MLFLOW_URL:     "http://mlflow-service:5000"
+  INGESTION_URL:  "http://ingestion-service:8001"
+  NLP_URL:        "http://nlp-service:8002"
+  VECTOR_URL:     "http://vector-service:8003"

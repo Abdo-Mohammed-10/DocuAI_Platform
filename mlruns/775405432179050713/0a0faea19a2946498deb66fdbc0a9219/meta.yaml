@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/0a0faea19a2946498deb66fdbc0a9219/artifacts
+end_time: 1781937102203
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: 0a0faea19a2946498deb66fdbc0a9219
+run_name: monumental-colt-729
+run_uuid: 0a0faea19a2946498deb66fdbc0a9219
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781937102159
+status: 3
+tags: []
+user_id: abdo

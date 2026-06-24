@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/4d1b39eca3aa4a52ae267a26531bd2fa/artifacts
+end_time: 1781937002953
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: 4d1b39eca3aa4a52ae267a26531bd2fa
+run_name: sincere-fawn-461
+run_uuid: 4d1b39eca3aa4a52ae267a26531bd2fa
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781937002939
+status: 3
+tags: []
+user_id: abdo

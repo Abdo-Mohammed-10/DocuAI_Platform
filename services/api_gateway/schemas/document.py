@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from shared.db.models.document import DocumentStatus
 
 
-class DocumentsUploadedResponse(BaseModel):
+class DocumentUploadResponse(BaseModel):
     id: uuid.UUID
     filename: str
     status: DocumentStatus

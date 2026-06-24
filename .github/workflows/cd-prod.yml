@@ -1,0 +1,101 @@
+name: CD — Production
+
+on:
+  push:
+    tags:
+      - "v*.*.*"   # v1.0.0, v1.2.3, etc.
+
+env:
+  AWS_REGION:       ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY:     ${{ secrets.ECR_REGISTRY }}
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+
+jobs:
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production   # بيطلب manual approval في GitHub
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Get tag version
+        id: tag
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build & Push all images with version tag
+        run: |
+          VERSION=${{ steps.tag.outputs.version }}
+          ECR=${{ env.ECR_REGISTRY }}
+
+          services=("api-gateway:services/api_gateway/Dockerfile"
+                    "ingestion:services/ingestion_service/Dockerfile"
+                    "nlp:services/nlp_service/Dockerfile"
+                    "vector:services/vector_service/Dockerfile"
+                    "analytics:services/analytics_service/Dockerfile"
+                    "frontend:frontend/streamlit_app/Dockerfile")
+
+          for item in "${services[@]}"; do
+            name="${item%%:*}"
+            dockerfile="${item##*:}"
+
+            echo "Building docuai-${name}:${VERSION}..."
+            docker build \
+              -t "${ECR}/docuai-${name}:${VERSION}" \
+              -t "${ECR}/docuai-${name}:stable" \
+              -f "${dockerfile}" .
+
+            docker push "${ECR}/docuai-${name}:${VERSION}"
+            docker push "${ECR}/docuai-${name}:stable"
+          done
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Deploy to production namespace
+        run: |
+          VERSION=${{ steps.tag.outputs.version }}
+          ECR=${{ env.ECR_REGISTRY }}
+
+          # عمل namespace للـ prod
+          kubectl create namespace smart-doc-prod --dry-run=client -o yaml \
+            | kubectl apply -f -
+
+          # Apply configs
+          kubectl create configmap smart-doc-config \
+            --namespace=smart-doc-prod \
+            --from-literal=APP_ENV=production \
+            --from-literal=POSTGRES_HOST=${{ secrets.DB_ENDPOINT }} \
+            --from-literal=POSTGRES_DB=smart_doc_db \
+            --from-literal=POSTGRES_USER=postgres \
+            --from-literal=REDIS_HOST=${{ secrets.REDIS_ENDPOINT }} \
+            --from-literal=AWS_S3_BUCKET=${{ secrets.S3_BUCKET_NAME }} \
+            --from-literal=AWS_REGION=${{ env.AWS_REGION }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          kubectl create secret generic smart-doc-secrets \
+            --namespace=smart-doc-prod \
+            --from-literal=POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }} \
+            --from-literal=SECRET_KEY=${{ secrets.SECRET_KEY }} \
+            --from-literal=OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+            --from-literal=LANGCHAIN_API_KEY=${{ secrets.LANGCHAIN_API_KEY }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Notify deployment
+        run: |
+          echo "✅ Production deployment complete!"
+          echo "Version: ${{ steps.tag.outputs.version }}"
+          kubectl get pods -n smart-doc-prod

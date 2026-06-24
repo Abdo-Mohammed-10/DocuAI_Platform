@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/d7564630fadc470f8bc9d2cd698f34a4/artifacts
+end_time: 1781935409120
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: d7564630fadc470f8bc9d2cd698f34a4
+run_name: adorable-penguin-495
+run_uuid: d7564630fadc470f8bc9d2cd698f34a4
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781935409088
+status: 3
+tags: []
+user_id: abdo

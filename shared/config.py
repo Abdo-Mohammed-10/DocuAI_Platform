@@ -1,11 +1,22 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
+
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 load_dotenv()
+from sqlalchemy.ext.asyncio import create_async_engine
+
+DATABASE_URL = os.getenv("DB_HOST")
+
+engine = create_async_engine(
+    DATABASE_URL, echo=False, pool_pre_ping=True, connect_args={"ssl": False}
+)
 
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -17,7 +28,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "DocuAI dev"
     APP_VERSION: str = "0.1.0"
     APP_ENV: str = "development"
-    SECRET_KEY: str = "DocuAISecretKey"
+    secret_key: str = "DocuAISecretKey"
     internal_api_key: str = "DocuAIInternalKey"
     postgres_host: str = "localhost"
     postgres_port: int = 5432

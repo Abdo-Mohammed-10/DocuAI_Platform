@@ -1,0 +1,108 @@
+{
+  "title": "DocuAI — LLM & RAG Metrics",
+  "uid": "DocuAI-llm",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "LLM Requests/min",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum(rate(llm_requests_total[1m])) by (endpoint, status)",
+          "legendFormat": "{{endpoint}} - {{status}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "RAG Latency (p50/p95/p99)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(llm_latency_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "p50 - {{endpoint}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(llm_latency_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "p95 - {{endpoint}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(llm_latency_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "p99 - {{endpoint}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "RAG Query Rewrites (Retries)",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 8},
+      "targets": [
+        {"expr": "sum(rag_retries_total)"}
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Documents Processed",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 8},
+      "targets": [
+        {
+          "expr": "sum(documents_processed_total) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Document Processing Time (p95)",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(document_processing_seconds_bucket[10m])) by (le))",
+          "legendFormat": "p95 processing time"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Vector Search Latency",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vector_search_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95 search latency"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Vector Search Top-1 Similarity Distribution",
+      "type": "heatmap",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "targets": [
+        {
+          "expr": "sum(rate(vector_search_similarity_score_bucket[5m])) by (le)",
+          "format": "heatmap"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Chunks & Embeddings Created (total)",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 22},
+      "targets": [
+        {"expr": "sum(chunks_created_total)", "legendFormat": "Chunks"},
+        {"expr": "sum(embeddings_created_total)", "legendFormat": "Embeddings"}
+      ]
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 from services.api_gateway.middleware.auth import (
-    hash_password,
-    verify_password,
     create_token,
     create_token_pair,
+    hash_password,
+    verify_password,
 )
 
 

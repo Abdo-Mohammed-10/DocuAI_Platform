@@ -6,111 +6,102 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings
-from shared.db.session import get_db
 from shared.db.models.user import User
-from dataclasses import dataclass
+from shared.db.session import get_db
+import hashlib
+from passlib.context import CryptContext
+from uuid import UUID
 
-@dataclass
-class TokenPair:
-    access_token: str
-    refresh_token: str
-    
-# ── Config 
-ALGORITHM      = "HS256"
-ACCESS_EXPIRE  = 60        # minutes
-REFRESH_EXPIRE = 60 * 24 * 1  # 1 days
+# Config 
+ALGORITHM = "HS256"
+ACCESS_EXPIRE = 60  # minutes
+REFRESH_EXPIRE = 60 * 24 * 7  # 7 days
+oauth2 = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-pwd_ctx    = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2     = OAuth2PasswordBearer(tokenUrl="/auth/login")
+# FIX: use sha256_crypt instead of bcrypt (avoids 72-byte issue)
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
-# ── Schemas 
+# Schemas 
 class TokenPayload(BaseModel):
-    sub: str       # user id
+    sub: str
     exp: datetime
 
 
 class TokenPair(BaseModel):
-    access_token:  str
+    access_token: str
     refresh_token: str
-    token_type:    str = "bearer"
+    token_type: str = "bearer"
 
 
-# ── Helpers 
+def _normalize_password(password: str) -> str:
+    # bcrypt limit workaround
+    if len(password.encode("utf-8")) > 72:
+        return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return password
+
+
 def hash_password(password: str) -> str:
+    password = _normalize_password(password)
     return pwd_ctx.hash(password)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
+    plain = _normalize_password(plain)
     return pwd_ctx.verify(plain, hashed)
 
 
-def create_token(
-    user_id: str,
-    token_type: str = "access",
-    expire_minutes: int = 60,
-):
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=expire_minutes
-    )
-
-    payload = {
-        "sub": user_id,
-        "type": token_type,
-        "exp": expire,
-    }
-
+def create_token(user_id: str, expire_minutes: int) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)
     return jwt.encode(
-        payload,
-        settings.SECRET_KEY,
-        algorithm="HS256",
+        {"sub": user_id, "exp": expire},
+        settings.secret_key,
+        algorithm=ALGORITHM,
     )
 
 
 def create_token_pair(user_id: str) -> TokenPair:
     return TokenPair(
-        access_token=create_token(
-            user_id=user_id,
-            token_type="access",
-            expire_minutes=60,
-        ),
-        refresh_token=create_token(
-            user_id=user_id,
-            token_type="refresh",
-            expire_minutes=60 * 24 * 7,
-        ),
+        access_token=create_token(user_id, ACCESS_EXPIRE),
+        refresh_token=create_token(user_id, REFRESH_EXPIRE),
     )
 
-
-# ── FastAPI Dependency 
+# FastAPI Dependency
 async def get_current_user(
     token: Annotated[str, Depends(oauth2)],
-    db:    AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
     credentials_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired token",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
         payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[ALGORITHM]
+            token,
+            settings.secret_key,
+            algorithms=[ALGORITHM],
         )
-        user_id: str = payload.get("sub")
-        if not user_id:
+
+        user_id = UUID(payload.get("sub"))
+
+        if user_id is None:
             raise credentials_exc
+
     except JWTError:
         raise credentials_exc
 
     result = await db.execute(
         select(User).where(User.id == user_id)
     )
+
     user = result.scalar_one_or_none()
-    if not user or not user.is_active:
+
+    if user is None or not user.is_active:
         raise credentials_exc
 
     return user

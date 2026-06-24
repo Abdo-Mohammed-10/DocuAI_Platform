@@ -1,0 +1,247 @@
+name: CD — Staging
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION:       ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY:     ${{ secrets.ECR_REGISTRY }}
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+
+jobs:
+  # ── Job 1: Run Tests ──────────────────────────────────────
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install uv
+      - run: uv pip install --system -r requirements/dev.txt
+      - run: ruff check .
+      - run: pytest tests/ -v
+
+  # ── Job 2: Build & Push Images ────────────────────────────
+  build:
+    name: Build & Push to ECR
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: tag
+        run: echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push — API Gateway
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/api_gateway/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/docuai-api-gateway:${{ steps.tag.outputs.tag }}
+            ${{ env.ECR_REGISTRY }}/docuai-api-gateway:latest
+
+      - name: Build & Push — Ingestion
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/ingestion_service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/docuai-ingestion:${{ steps.tag.outputs.tag }}
+            ${{ env.ECR_REGISTRY }}/docuai-ingestion:latest
+
+      - name: Build & Push — NLP
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/nlp_service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/docuai-nlp:${{ steps.tag.outputs.tag }}
+            ${{ env.ECR_REGISTRY }}/docuai-nlp:latest
+
+      - name: Build & Push — Vector
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/vector_service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/docuai-vector:${{ steps.tag.outputs.tag }}
+            ${{ env.ECR_REGISTRY }}/docuai-vector:latest
+
+      - name: Build & Push — Analytics
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/analytics_service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/docuai-analytics:${{ steps.tag.outputs.tag }}
+            ${{ env.ECR_REGISTRY }}/docuai-analytics:latest
+
+      - name: Build & Push — Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: frontend/streamlit_app/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/docuai-frontend:${{ steps.tag.outputs.tag }}
+            ${{ env.ECR_REGISTRY }}/docuai-frontend:latest
+
+  # ── Job 3: Deploy to EKS ──────────────────────────────────
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    needs: build
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Create namespace
+        run: |
+          kubectl apply -f k8s/namespace/namespace.yaml
+
+      - name: Apply ConfigMap
+        run: |
+          kubectl create configmap smart-doc-config \
+            --namespace=smart-doc \
+            --from-literal=APP_ENV=production \
+            --from-literal=POSTGRES_HOST=${{ secrets.DB_ENDPOINT }} \
+            --from-literal=POSTGRES_PORT=5432 \
+            --from-literal=POSTGRES_DB=smart_doc_db \
+            --from-literal=POSTGRES_USER=postgres \
+            --from-literal=REDIS_HOST=${{ secrets.REDIS_ENDPOINT }} \
+            --from-literal=REDIS_PORT=6379 \
+            --from-literal=AWS_S3_BUCKET=${{ secrets.S3_BUCKET_NAME }} \
+            --from-literal=AWS_REGION=${{ env.AWS_REGION }} \
+            --from-literal=INGESTION_URL=http://ingestion-service:8001 \
+            --from-literal=NLP_URL=http://nlp-service:8002 \
+            --from-literal=VECTOR_URL=http://vector-service:8003 \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply Secrets
+        run: |
+          kubectl create secret generic smart-doc-secrets \
+            --namespace=smart-doc \
+            --from-literal=POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }} \
+            --from-literal=SECRET_KEY=${{ secrets.SECRET_KEY }} \
+            --from-literal=OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
+            --from-literal=LANGCHAIN_API_KEY=${{ secrets.LANGCHAIN_API_KEY }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Run DB Migrations
+        run: |
+          kubectl run db-migrate \
+            --image=${{ env.ECR_REGISTRY }}/docuai-api-gateway:${{ needs.build.outputs.image_tag }} \
+            --namespace=smart-doc \
+            --restart=Never \
+            --env="POSTGRES_HOST=${{ secrets.DB_ENDPOINT }}" \
+            --env="POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}" \
+            --env="POSTGRES_DB=smart_doc_db" \
+            --env="POSTGRES_USER=postgres" \
+            --command -- bash -c "cd /app/shared && alembic upgrade head"
+
+          # استنى الـ migration تخلص
+          kubectl wait --for=condition=complete \
+            --timeout=120s \
+            job/db-migrate \
+            --namespace=smart-doc || true
+
+          kubectl delete pod db-migrate \
+            --namespace=smart-doc \
+            --ignore-not-found=true
+
+      - name: Update image tags in manifests
+        run: |
+          IMAGE_TAG=${{ needs.build.outputs.image_tag }}
+          ECR=${{ env.ECR_REGISTRY }}
+
+          # بدّل الـ image في كل deployment بالـ tag الجديد
+          sed -i "s|smart-doc/api-gateway:latest|${ECR}/docuai-api-gateway:${IMAGE_TAG}|g" \
+            k8s/deployments/api-gateway.yaml
+
+          sed -i "s|smart-doc/ingestion:latest|${ECR}/docuai-ingestion:${IMAGE_TAG}|g" \
+            k8s/deployments/ingestion.yaml
+
+          sed -i "s|smart-doc/nlp:latest|${ECR}/docuai-nlp:${IMAGE_TAG}|g" \
+            k8s/deployments/nlp.yaml
+
+          sed -i "s|smart-doc/vector:latest|${ECR}/docuai-vector:${IMAGE_TAG}|g" \
+            k8s/deployments/vector.yaml
+
+          sed -i "s|smart-doc/analytics:latest|${ECR}/docuai-analytics:${IMAGE_TAG}|g" \
+            k8s/deployments/analytics.yaml
+
+          sed -i "s|smart-doc/frontend:latest|${ECR}/docuai-frontend:${IMAGE_TAG}|g" \
+            k8s/deployments/frontend.yaml
+
+          # عدّل imagePullPolicy من Never لـ Always
+          find k8s/deployments/ -name "*.yaml" \
+            -exec sed -i "s|imagePullPolicy: Never|imagePullPolicy: Always|g" {} \;
+
+      - name: Deploy all services
+        run: |
+          kubectl apply -f k8s/deployments/
+          kubectl apply -f k8s/hpa/hpa.yaml
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/api-gateway \
+            -n smart-doc --timeout=300s
+
+          kubectl rollout status deployment/ingestion-service \
+            -n smart-doc --timeout=300s
+
+          kubectl rollout status deployment/nlp-service \
+            -n smart-doc --timeout=300s
+
+          kubectl rollout status deployment/vector-service \
+            -n smart-doc --timeout=300s
+
+          kubectl rollout status deployment/frontend \
+            -n smart-doc --timeout=300s
+
+      - name: Get service URLs
+        run: |
+          echo "=== Deployed Services ==="
+          kubectl get services -n smart-doc
+          echo ""
+          echo "=== Pods Status ==="
+          kubectl get pods -n smart-doc

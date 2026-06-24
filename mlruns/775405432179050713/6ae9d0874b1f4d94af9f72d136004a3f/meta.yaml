@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/6ae9d0874b1f4d94af9f72d136004a3f/artifacts
+end_time: 1781937456111
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: 6ae9d0874b1f4d94af9f72d136004a3f
+run_name: gaudy-fox-805
+run_uuid: 6ae9d0874b1f4d94af9f72d136004a3f
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781937456089
+status: 3
+tags: []
+user_id: abdo

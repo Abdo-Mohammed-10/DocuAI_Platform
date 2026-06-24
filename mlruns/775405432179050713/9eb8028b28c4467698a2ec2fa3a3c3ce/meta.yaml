@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/9eb8028b28c4467698a2ec2fa3a3c3ce/artifacts
+end_time: 1781936821615
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: 9eb8028b28c4467698a2ec2fa3a3c3ce
+run_name: delicate-shark-545
+run_uuid: 9eb8028b28c4467698a2ec2fa3a3c3ce
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781936821602
+status: 3
+tags: []
+user_id: abdo

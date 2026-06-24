@@ -1,18 +1,21 @@
 import uuid
-from fastapi import FastAPI, Depends, HTTPException
+import time
+
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from shared.db.session import get_db
-from shared.db.models.document import Document, DocumentStatus
 from services.vector_service.stores.pgvector_store import PGVectorStore
+from shared.db.session import get_db
+from prometheus_fastapi_instrumentator import Instrumentator
 
 app = FastAPI(title="Vector Service", version="0.1.0")
+Instrumentator().instrument(app).expose(app)
+
 store = PGVectorStore()
 
 
-#  Schemas 
+# ---- Schemas ----
 class SearchRequest(BaseModel):
     document_id: uuid.UUID
     query: str
@@ -23,7 +26,8 @@ class SearchResult(BaseModel):
     id: str
     content: str
     chunk_index: int
-    page_number: int | None
+    page_number: int
+    token_count: int
     similarity: float
     preview: str
 
@@ -34,39 +38,24 @@ class SearchResponse(BaseModel):
     total: int
 
 
-#  Endpoints 
+class EmbedRequest(BaseModel):
+    document_id: uuid.UUID
+
+
+# ---- Endpoints ----
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "vector"}
 
 
-@app.post("/embed/{document_id}")
+@app.post("/embed")
 async def embed_document(
-    document_id: uuid.UUID,
+    req: EmbedRequest,
     db: AsyncSession = Depends(get_db),
 ):
-
-    result = await db.execute(
-        select(Document).where(Document.id == document_id)
-    )
-    doc = result.scalar_one_or_none()
-
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-    if doc.status != DocumentStatus.DONE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Document not ready. Status: {doc.status}",
-        )
-
-    count = await store.save_embeddings(document_id, db)
+    count = await store.save_embeddings(req.document_id, db)
     await db.commit()
-
-    return {
-        "document_id": document_id,
-        "chunks_embedded": count,
-        "message": f"Successfully embedded {count} chunks",
-    }
+    return {"document_id": req.document_id, "embedded_chunks": count}
 
 
 @app.post("/search", response_model=SearchResponse)
@@ -74,12 +63,19 @@ async def semantic_search(
     req: SearchRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    start = time.time()
+
     results = await store.similarity_search(
         query=req.query,
         document_id=req.document_id,
         db=db,
         top_k=req.top_k,
     )
+
+    latency = round(time.time() - start, 3)
+
+    if not results:
+        raise HTTPException(status_code=404, detail="No chunks found for this document")
 
     return SearchResponse(
         query=req.query,
@@ -88,8 +84,7 @@ async def semantic_search(
     )
 
 
-@app.post("/index/create")
-async def create_hnsw_index(db: AsyncSession = Depends(get_db)):
-
+@app.post("/index")
+async def create_index(db: AsyncSession = Depends(get_db)):
     await store.create_index(db)
-    return {"message": "HNSW index created successfully"}
+    return {"status": "index created"}

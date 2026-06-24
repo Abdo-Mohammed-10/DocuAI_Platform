@@ -1,9 +1,10 @@
 from __future__ import annotations
-from pgvector.sqlalchemy import Vector
+
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, Integer, String, Text
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import ForeignKey, Index, Integer, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,7 +13,7 @@ from shared.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from shared.db.models.document import Document
 
-EMBEDDING_DIM = 384  
+EMBEDDING_DIM = 384
 
 
 class Chunk(Base, TimestampMixin):
@@ -29,14 +30,8 @@ class Chunk(Base, TimestampMixin):
     page_number: Mapped[int] = mapped_column(Integer, nullable=True)
     token_count: Mapped[int] = mapped_column(Integer, nullable=True)
 
-    embedding: Mapped[list[float]] = mapped_column(
-        Vector(EMBEDDING_DIM), nullable=True
-    )
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
 
-    document: Mapped["Document"] = relationship(
-        "Document", back_populates="chunks"
-    )
+    document: Mapped["Document"] = relationship("Document", back_populates="chunks")
 
-    __table_args__ = (
-        Index("ix_chunks_document_id", "document_id"),
-    )
+    __table_args__ = (Index("ix_chunks_document_id", "document_id"),)

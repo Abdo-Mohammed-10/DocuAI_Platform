@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/0fab300bd4d646f7b22f34131578382d/artifacts
+end_time: 1781217386567
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: 0fab300bd4d646f7b22f34131578382d
+run_name: judicious-calf-449
+run_uuid: 0fab300bd4d646f7b22f34131578382d
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781217386527
+status: 3
+tags: []
+user_id: abdo

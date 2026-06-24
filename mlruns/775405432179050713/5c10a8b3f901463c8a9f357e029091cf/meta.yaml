@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/5c10a8b3f901463c8a9f357e029091cf/artifacts
+end_time: 1781470515634
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: 5c10a8b3f901463c8a9f357e029091cf
+run_name: stylish-fawn-366
+run_uuid: 5c10a8b3f901463c8a9f357e029091cf
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781470515579
+status: 3
+tags: []
+user_id: abdo

@@ -1,130 +1,192 @@
+version: "3.9"
+
 services:
+
+  # ── Infrastructure ──────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
     container_name: DocuAI_postgres
-
+    restart: unless-stopped
     environment:
+      POSTGRES_DB: docuai_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: DocuAI
-
     ports:
       - "5432:5432"
-
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
-      retries: 3
+      retries: 5
 
   redis:
     image: redis:7-alpine
     container_name: DocuAI_redis
-
+    restart: unless-stopped
     ports:
       - "6379:6379"
-
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  backend:
+  # ── API Gateway ──────────────────────────────────────
+  api_gateway:
+    build:
+      context: .
+      dockerfile: services/api_gateway/Dockerfile
+    container_name: DocuAI_gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5 
+    volumes:
+      - ./alembic.ini:/app/alembic.ini
+      - ./alembic:/app/alembic
+
+  # ── Services ──────────────────────────────────────
+  ingestion_service:
     build:
       context: .
       dockerfile: services/ingestion_service/Dockerfile
-    container_name: DocuAI_backend
-
+    container_name: DocuAI_ingestion
+    restart: unless-stopped
     ports:
-      - "8000:8000"
-
+      - "8001:8001"
+    env_file: .env
     environment:
-      - REDIS_HOST=redis
-      - POSTGRES_HOST=postgres
-
-    volumes:
-      - .:/app
-
-    working_dir: /app
-
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
 
+  nlp_service:
+    build:
+      context: .
+      dockerfile: services/nlp_service/Dockerfile
+    container_name: DocuAI_nlp
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
       postgres:
         condition: service_healthy
 
+  vector_service:
+    build:
+      context: .
+      dockerfile: services/vector_service/Dockerfile
+    container_name: DocuAI_vector
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  analytics_service:
+    build:
+      context: .
+      dockerfile: services/analytics_service/Dockerfile
+    container_name: DocuAI_analytics
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── Celery ──────────────────────────────────────
   celery_worker:
     build:
       context: .
       dockerfile: services/ingestion_service/Dockerfile
-
     container_name: DocuAI_celery
-
-    command: celery -A shared.celery_app worker --loglevel=info --concurrency=2
-
+    restart: unless-stopped
+    command: >
+      celery -A shared.celery_app worker
+      --loglevel=info
+      --concurrency=2
+      -Q ingestion
+    env_file: .env
     environment:
-      - REDIS_HOST=redis
-      - POSTGRES_HOST=postgres
-
-    volumes:
-      - .:/app
-
-    working_dir: /app
-
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
     depends_on:
-      redis:
-        condition: service_healthy
-
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   flower:
     image: mher/flower:2.0
     container_name: DocuAI_flower
-
+    restart: unless-stopped
     command: celery --broker=redis://redis:6379/0 flower --port=5555
-
     ports:
       - "5555:5555"
-
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
-  nginx:
-    image: nginx:alpine
-    container_name: DocuAI_nginx
-
-    ports:
-      - "80:80"
-
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-
-    depends_on:
-      - backend
-
+  # ── MLflow ──────────────────────────────────────
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.14.1
     container_name: DocuAI_mlflow
+    restart: unless-stopped
     command: mlflow server --host 0.0.0.0 --port 5000
     ports:
       - "5000:5000"
     volumes:
       - mlflow_data:/mlflow
-      
-  clamav:
-    image: clamav/clamav:latest
+
+  # ── Frontend ──────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/streamlit_app/Dockerfile
+    container_name: DocuAI_frontend
+    restart: unless-stopped
     ports:
-      - "3310:3310"
-  
-  minio:
-    image: minio/minio
+      - "8501:8501"
+    env_file: .env
+    environment:
+      API_BASE_URL: http://api_gateway:8000
+    depends_on:
+      api_gateway:
+        condition: service_healthy
 
 volumes:
   postgres_data:
-  mlflow_data:    
+  mlflow_data:

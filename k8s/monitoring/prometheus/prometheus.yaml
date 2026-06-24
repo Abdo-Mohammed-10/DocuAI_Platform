@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "api_gateway"
+    static_configs:
+      - targets: ["host.docker.internal:8000"]
+
+  - job_name: "nlp_service"
+    static_configs:
+      - targets: ["host.docker.internal:8002"]
+
+  - job_name: "vector_service"
+    static_configs:
+      - targets: ["host.docker.internal:8003"]
+
+  - job_name: "ingestion_service"
+    static_configs:
+      - targets: ["host.docker.internal:8001"]
+
+  - job_name: "analytics_service"
+    static_configs:
+      - targets: ["host.docker.internal:8004"]
+
+  - job_name: "redis"
+    static_configs:
+      - targets: ["redis_exporter:9121"]
+
+  - job_name: "postgres"
+    static_configs:
+      - targets: ["postgres_exporter:9187"]

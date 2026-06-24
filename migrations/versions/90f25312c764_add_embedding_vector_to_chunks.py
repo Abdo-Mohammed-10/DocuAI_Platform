@@ -5,19 +5,16 @@ Revises: b2d572c8c13e
 Create Date: 2026-05-29 23:02:21.815479
 
 """
-from pgvector.sqlalchemy import VECTOR
+
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
-revision: str = '90f25312c764'
-down_revision: Union[str, None] = 'b2d572c8c13e'
+revision: str = "90f25312c764"
+down_revision: Union[str, None] = "b2d572c8c13e"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 
 def upgrade() -> None:
@@ -38,13 +35,8 @@ def upgrade() -> None:
         USING NULL
     """)
 
-    op.drop_index('idx_chunks_document_id', table_name='chunks')
-    op.create_index(
-        'ix_chunks_document_id',
-        'chunks',
-        ['document_id'],
-        unique=False
-    )
+    op.drop_index("idx_chunks_document_id", table_name="chunks")
+    op.create_index("ix_chunks_document_id", "chunks", ["document_id"], unique=False)
 
 
 def downgrade() -> None:
@@ -56,14 +48,9 @@ def downgrade() -> None:
     #            type_=sa.VARCHAR(),
     #            nullable=False)
     # # ### end Alembic commands ###
-    op.drop_index('ix_chunks_document_id', table_name='chunks')
+    op.drop_index("ix_chunks_document_id", table_name="chunks")
 
-    op.create_index(
-        'idx_chunks_document_id',
-        'chunks',
-        ['document_id'],
-        unique=False
-    )
+    op.create_index("idx_chunks_document_id", "chunks", ["document_id"], unique=False)
 
     op.execute("""
         ALTER TABLE chunks

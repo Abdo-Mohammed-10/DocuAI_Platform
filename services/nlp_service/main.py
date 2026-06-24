@@ -1,30 +1,38 @@
 import uuid
-
-from fastapi import Depends, FastAPI, HTTPException
+import time
+from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from prometheus_fastapi_instrumentator import Instrumentator
 
-from mlops.mlflow_tracker import LLMTracker
-from services.nlp_service.pipelines.classifier import DocumentClassifier
-from services.nlp_service.pipelines.rag_pipeline import RAGPipeline
-from services.nlp_service.pipelines.summarizer import Summarizer
-from shared.db.models.document import Document, DocumentStatus
 from shared.db.session import get_db
+from shared.db.models.document import Document, DocumentStatus
 from shared.langsmith_setup import init_langsmith
 from services.nlp_service.pipelines.agentic_rag import rag_graph
-from shared.circuit_breaker import breaker
+from services.nlp_service.pipelines.summarizer import Summarizer
+from services.nlp_service.pipelines.classifier import DocumentClassifier
+from mlops.mlflow_tracker import LLMTracker
+from services.analytics_service.metrics.prometheus_metrics import (
+    llm_requests_total,
+    llm_latency_seconds,
+    llm_tokens_total,
+    llm_cost_usd_total,
+    rag_retries_total,
+)
 
 init_langsmith()
+
 app = FastAPI(title="NLP Service", version="0.1.0")
-app.add_middleware(CorrelationIdMiddleware)
-app.add_middleware(RequestIDMiddleware)
-rag = RAGPipeline(top_k=5)
-summarizer = Summarizer()
-classifier = DocumentClassifier()
-tracker = LLMTracker()
 
+# ── Prometheus default metrics (request count, latency, etc) ──
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
+summarizer  = Summarizer()
+classifier  = DocumentClassifier()
+tracker     = LLMTracker()
+
+# ── Schemas ────────────────────────────────────────────────────────────────
 class QuestionRequest(BaseModel):
     document_id: uuid.UUID
     question: str
@@ -34,31 +42,28 @@ class QuestionResponse(BaseModel):
     answer: str
     source_chunks: list[dict]
     latency_ms: float
-    input_tokens: int
-    output_tokens: int
+    retries: int
 
 
 class SummaryRequest(BaseModel):
     document_id: uuid.UUID
     language: str = "English"
 
-@breaker
-async def get_ready_document(
-    document_id: uuid.UUID,
-    db: AsyncSession,
-) -> Document:
-    result = await db.execute(select(Document).where(Document.id == document_id))
+
+# ── Helpers ────────────────────────────────────────────────────────────────
+async def get_ready_document(doc_id: uuid.UUID, db: AsyncSession) -> Document:
+    result = await db.execute(select(Document).where(Document.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    if doc.status != DocumentStatus.DONE:
+    if doc.status != DocumentStatus.done:
         raise HTTPException(
             status_code=400,
-            detail=f"Document not ready yet. Status: {doc.status}",
+            detail=f"Document not ready. Status: {doc.status}",
         )
     return doc
 
-
+# ── Endpoints ──────────────────────────────────────────────────────────────
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "nlp"}
@@ -72,28 +77,50 @@ async def ask_question(
     await get_ready_document(req.document_id, db)
 
     start = time.time()
+    status_label = "success"
 
-    # LangGraph pipeline
-    final_state = await rag_graph.ainvoke({
-        "question":    req.question,
-        "document_id": str(req.document_id),
-        "chunks":      [],
-        "context":     "",
-        "answer":      "",
-        "is_relevant": False,
-        "retry_count": 0,
-        "db":          db,
-    })
+    try:
+        final_state = await rag_graph.ainvoke({
+            "question":    req.question,
+            "document_id": str(req.document_id),
+            "chunks":      [],
+            "context":     "",
+            "answer":      "",
+            "is_relevant": False,
+            "retry_count": 0,
+            "db":          db,
+        })
+    except Exception:
+        status_label = "error"
+        llm_requests_total.labels(
+            service="nlp", endpoint="/ask", status=status_label
+        ).inc()
+        raise
 
-    latency = round((time.time() - start) * 1000, 2)
+    latency = time.time() - start
 
-    result = await rag.run(
-        question=req.question,
-        document_id=req.document_id,
-        db=db,
-    )
+    # ── Record Prometheus metrics ─────────────────────────
+    llm_requests_total.labels(
+        service="nlp", endpoint="/ask", status=status_label
+    ).inc()
 
-    # MLflow
+    llm_latency_seconds.labels(
+        service="nlp", endpoint="/ask"
+    ).observe(latency)
+
+    retries = final_state.get("retry_count", 0)
+    if retries:
+        rag_retries_total.inc(retries)
+
+    # ── MLflow tracking (existing) ────────────────────────
+    class _Result:
+        pass
+    result = _Result()
+    result.source_chunks = final_state["chunks"]
+    result.latency_ms = round(latency * 1000, 2)
+    result.input_tokens = 0
+    result.output_tokens = 0
+
     tracker.log_rag_call(
         question=req.question,
         result=result,
@@ -101,31 +128,50 @@ async def ask_question(
     )
 
     return QuestionResponse(
-        answer=result.answer,
-        source_chunks=result.source_chunks,
-        latency_ms=result.latency_ms,
-        input_tokens=result.input_tokens,
-        output_tokens=result.output_tokens,
+        answer=final_state["answer"],
+        source_chunks=final_state["chunks"],
+        latency_ms=round(latency * 1000, 2),
+        retries=retries,
     )
 
 
 @app.post("/summarize")
-@breaker
 async def summarize(
     req: SummaryRequest,
     db: AsyncSession = Depends(get_db),
 ):
     await get_ready_document(req.document_id, db)
+
+    start = time.time()
     summary = await summarizer.summarize(req.document_id, db, req.language)
+    latency = time.time() - start
+
+    llm_requests_total.labels(
+        service="nlp", endpoint="/summarize", status="success"
+    ).inc()
+    llm_latency_seconds.labels(
+        service="nlp", endpoint="/summarize"
+    ).observe(latency)
+
     return {"document_id": req.document_id, "summary": summary}
 
 
 @app.post("/classify")
-@breaker
 async def classify(
     document_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     await get_ready_document(document_id, db)
+
+    start = time.time()
     category = await classifier.classify(document_id, db)
+    latency = time.time() - start
+
+    llm_requests_total.labels(
+        service="nlp", endpoint="/classify", status="success"
+    ).inc()
+    llm_latency_seconds.labels(
+        service="nlp", endpoint="/classify"
+    ).observe(latency)
+
     return {"document_id": document_id, "category": category}

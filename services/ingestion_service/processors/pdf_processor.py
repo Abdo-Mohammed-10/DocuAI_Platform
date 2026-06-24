@@ -9,6 +9,7 @@ class PageContent:
     text: str
     char_count: int
 
+
 class PDFProcessor:
     def extract_pages(self, file_bytes: bytes) -> list[PageContent]:
         pages = []

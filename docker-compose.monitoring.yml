@@ -1,0 +1,59 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: DocuAI_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./k8s/monitoring/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    networks:
+      - default
+
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: DocuAI_grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: ""
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./k8s/monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - default
+
+  # ── Exporters ────────────────────────────────────────────
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.61.0
+    container_name: DocuAI_redis_exporter
+    command: ["--redis.addr=redis://redis:6379"]
+    ports:
+      - "9121:9121"
+    networks:
+      - default
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: DocuAI_postgres_exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:postgres@postgres:5432/DocuAI_db?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - default
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  default:
+    name: DocuAI_Network_default
+    external: true

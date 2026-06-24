@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/1f7de083f88340f3b837fb9ac85cd71d/artifacts
+end_time: 1781215663937
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: 1f7de083f88340f3b837fb9ac85cd71d
+run_name: worried-whale-262
+run_uuid: 1f7de083f88340f3b837fb9ac85cd71d
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781215663920
+status: 3
+tags: []
+user_id: abdo

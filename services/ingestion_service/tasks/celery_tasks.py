@@ -1,25 +1,34 @@
 import asyncio
 import uuid
+import time
 
 from celery.utils.log import get_task_logger
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from services.ingestion_service.processors.chunker import TextChunker
 from services.ingestion_service.processors.pdf_processor import PDFProcessor
+from services.vector_service.stores.pgvector_store import PGVectorStore
 from shared.celery_app import celery_app
+from shared.config import settings
 from shared.db.models.chunk import Chunk
 from shared.db.models.document import Document, DocumentStatus
-from shared.db.session import AsyncSessionLocal
 
 logger = get_task_logger(__name__)
 
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
 
-
-def run_async(coro):
-    return loop.run_until_complete(coro)
+def _make_session():
+    engine = create_async_engine(
+        settings.database_url,
+        pool_size=2,
+        max_overflow=0,
+    )
+    factory = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    return factory, engine
 
 
 @celery_app.task(
@@ -30,95 +39,75 @@ def run_async(coro):
 )
 def process_document(self, document_id: str, file_bytes_hex: str):
     try:
-        logger.info(f"Processing document: {document_id}")
-
         file_bytes = bytes.fromhex(file_bytes_hex)
-
-        run_async(
-            _process_document_async(
-                document_id=document_id,
-                file_bytes=file_bytes,
-            )
-        )
-
-        logger.info(f"Document processed successfully: {document_id}")
-
+        asyncio.run(_process_document_async(document_id, file_bytes))
     except Exception as exc:
         logger.error(f"Failed to process document {document_id}: {exc}")
-
-        run_async(
-            _update_document_status(
-                document_id=document_id,
-                status=DocumentStatus.FAILED,
-                error=str(exc),
-            )
-        )
-
+        asyncio.run(_set_status_safe(document_id, DocumentStatus.failed, str(exc)))
         raise self.retry(exc=exc)
 
+
+# ── async pipeline ────────────────────────────────────────
 async def _process_document_async(document_id: str, file_bytes: bytes):
-    async with AsyncSessionLocal() as db:
-        await _update_status(db, document_id, DocumentStatus.PROCESSING)
+    start_time = time.time()
+    factory, engine = _make_session()
 
-        processor = PDFProcessor()
-        pages = processor.extract_pages(file_bytes)
+    try:
+        async with factory() as db:
+            await _set_status(db, document_id, DocumentStatus.processing)
 
-        chunker = TextChunker(chunk_size=500, overlap=50)
-        chunks = chunker.chunk_pages(pages)
+            pages = PDFProcessor().extract_pages(file_bytes)
+            chunks = TextChunker(chunk_size=500, overlap=50).chunk_pages(pages)
 
-        doc_uuid = uuid.UUID(document_id)
-        chunk_objs = [
-            Chunk(
-                document_id=doc_uuid,
-                content=c.content,
-                chunk_index=c.chunk_index,
-                page_number=c.page_number,
-                token_count=c.token_count,
-            )
-            for c in chunks
-        ]
-        db.add_all(chunk_objs)
-        await db.flush()
+            doc_uuid = uuid.UUID(document_id)
+            chunk_objs = [
+                Chunk(
+                    document_id=doc_uuid,
+                    content=c.content,
+                    chunk_index=c.chunk_index,
+                    page_number=c.page_number,
+                    token_count=c.token_count,
+                )
+                for c in chunks
+            ]
+            db.add_all(chunk_objs)
+            await db.flush()
+            logger.info(f"Created {len(chunk_objs)} chunks")
 
-        from services.vector_service.stores.pgvector_store import PGVectorStore
-        vector_store = PGVectorStore()
-        embedded = await vector_store.save_embeddings(doc_uuid, db)
-        logger.info(f"Embedded {embedded} chunks")
-        
+            # embed
+            vector_store = PGVectorStore()
+            embedded = await vector_store.save_embeddings(doc_uuid, db)
+            logger.info(f"Embedded {embedded} chunks")
 
-        await _update_status(db, document_id, DocumentStatus.DONE)
-        await db.commit()
+            await _set_status(db, document_id, DocumentStatus.done)
+            await db.commit()
 
-async def _update_status(
-    db: AsyncSession,
-    document_id: str,
-    status: DocumentStatus,
-    error: str | None = None,
-):
-    result = await db.execute(
-        select(Document).where(Document.id == uuid.UUID(document_id))
+    finally:
+        await engine.dispose()
+
+    duration = time.time() - start_time
+    logger.info(f"Document {document_id} processed in {duration:.2f}s")
+
+
+# ── DB helpers ────────────────────────────────────────────
+async def _set_status(db: AsyncSession, document_id: str, status: DocumentStatus, error: str = None):
+    values = {"status": status}
+    if error:
+        values["error_message"] = error
+
+    await db.execute(
+        update(Document)
+        .where(Document.id == uuid.UUID(document_id))
+        .values(**values)
     )
-
-    document = result.scalar_one_or_none()
-
-    if document:
-        document.status = status
-
-        if error:
-            document.error_message = error
+    await db.flush()
 
 
-async def _update_document_status(
-    document_id: str,
-    status: DocumentStatus,
-    error: str | None = None,
-):
-    async with AsyncSessionLocal() as db:
-        await _update_status(
-            db=db,
-            document_id=document_id,
-            status=status,
-            error=error,
-        )
-
-        await db.commit()
+async def _set_status_safe(document_id: str, status: DocumentStatus, error: str = None):
+    factory, engine = _make_session()
+    try:
+        async with factory() as db:
+            await _set_status(db, document_id, status, error)
+            await db.commit()
+    finally:
+        await engine.dispose()

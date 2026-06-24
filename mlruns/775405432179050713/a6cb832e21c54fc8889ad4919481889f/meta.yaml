@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/a6cb832e21c54fc8889ad4919481889f/artifacts
+end_time: 1781935024756
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: a6cb832e21c54fc8889ad4919481889f
+run_name: unique-dog-961
+run_uuid: a6cb832e21c54fc8889ad4919481889f
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781935024724
+status: 3
+tags: []
+user_id: abdo

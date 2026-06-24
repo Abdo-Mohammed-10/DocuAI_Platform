@@ -1,0 +1,15 @@
+artifact_uri: file:///home/abdo/DocuAI/mlruns/775405432179050713/f02d0f772dc4478487517bba63d92de4/artifacts
+end_time: 1781938773262
+entry_point_name: ''
+experiment_id: '775405432179050713'
+lifecycle_stage: active
+run_id: f02d0f772dc4478487517bba63d92de4
+run_name: chill-ram-246
+run_uuid: f02d0f772dc4478487517bba63d92de4
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1781938773243
+status: 3
+tags: []
+user_id: abdo

@@ -10,6 +10,7 @@ def test_encode_returns_correct_dimension():
 
 def test_encode_returns_normalized():
     import numpy as np
+
     enc = TextEncoder()
     vec = np.array(enc.encode("test sentence"))
     norm = float(np.linalg.norm(vec))
@@ -19,8 +20,9 @@ def test_encode_returns_normalized():
 def test_encode_batch_consistent():
     enc = TextEncoder()
     single = enc.encode("machine learning")
-    batch  = enc.encode_batch(["machine learning", "deep learning"])
+    batch = enc.encode_batch(["machine learning", "deep learning"])
     import numpy as np
+
     diff = np.abs(np.array(single) - np.array(batch[0])).max()
     assert diff < 1e-5
 
@@ -37,4 +39,4 @@ def test_similarity_different_texts():
     v1 = enc.encode("machine learning algorithms")
     v2 = enc.encode("cooking pasta recipe")
     sim = enc.similarity(v1, v2)
-    assert sim < 0.5  
+    assert sim < 0.5

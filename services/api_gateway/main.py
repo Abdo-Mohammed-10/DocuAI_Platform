@@ -3,6 +3,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from services.api_gateway.routers import auth, documents, chat, analytics
+from services.api_gateway.middleware.request_id import RequestIDMiddleware
+from services.api_gateway.middleware.tracing import TracingMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 
 @asynccontextmanager
@@ -18,16 +21,19 @@ app = FastAPI(
     description="Unified API for Document Intelligence Platform",
     lifespan=lifespan,
 )
+Instrumentator().instrument(app).expose(app)
 
-# CORS
+# Middleware 
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(TracingMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # في production هتحدده
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Routers
+# Routers 
 app.include_router(auth.router)
 app.include_router(documents.router)
 app.include_router(chat.router)
