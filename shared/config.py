@@ -4,13 +4,7 @@ from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 load_dotenv()
-from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
-
-DATABASE_URL = os.getenv("DB_HOST")
-
-engine = create_async_engine(
-    DATABASE_URL, echo=False, pool_pre_ping=True, connect_args={"ssl": False}
-)
+from sqlalchemy.ext.asyncio import create_async_engine  
 
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -47,7 +41,7 @@ class Settings(BaseSettings):
             f"postgresql+asyncpg://"
             f"{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}"
-            f"/docuai_db"
+            f"/{self.postgres_db}"
         )
 
     redis_host: str = "localhost"
@@ -64,3 +58,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+engine = create_async_engine(
+    settings.database_url, echo=False, pool_pre_ping=True, connect_args={"ssl": False}
+)
