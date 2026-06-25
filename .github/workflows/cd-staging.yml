@@ -154,7 +154,7 @@ jobs:
             --from-literal=APP_ENV=production \
             --from-literal=POSTGRES_HOST="$DB_ENDPOINT" \
             --from-literal=POSTGRES_PORT=5432 \
-            --from-literal=POSTGRES_DB=smart_doc_db \
+            --from-literal=POSTGRES_DB=docuai_db \
             --from-literal=POSTGRES_USER=postgres \
             --from-literal=REDIS_HOST="$REDIS_ENDPOINT" \
             --from-literal=REDIS_PORT=6379 \
