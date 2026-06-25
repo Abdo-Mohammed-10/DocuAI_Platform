@@ -2,9 +2,9 @@ import os
 
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.ext.asyncio import create_async_engine
 
 load_dotenv()
-from sqlalchemy.ext.asyncio import create_async_engine  
 
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
