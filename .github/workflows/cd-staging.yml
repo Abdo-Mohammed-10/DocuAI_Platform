@@ -140,7 +140,8 @@ jobs:
             --name ${{ env.EKS_CLUSTER_NAME }}
 
       - name: Create namespace
-        run: kubectl apply -f k8s/namespace/namespace.yaml
+        run: |
+          kubectl create namespace docuai --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Apply ConfigMap
         env:
@@ -148,8 +149,8 @@ jobs:
           REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
           S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
         run: |
-          kubectl create configmap smart-doc-config \
-            --namespace=smart-doc \
+          kubectl create configmap docuai-config \
+            --namespace=docuai \
             --from-literal=APP_ENV=production \
             --from-literal=POSTGRES_HOST="$DB_ENDPOINT" \
             --from-literal=POSTGRES_PORT=5432 \
@@ -171,8 +172,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
         run: |
-          kubectl create secret generic smart-doc-secrets \
-            --namespace=smart-doc \
+          kubectl create secret generic docuai-secrets \
+            --namespace=docuai \
             --from-literal=POSTGRES_PASSWORD="$DB_PASSWORD" \
             --from-literal=SECRET_KEY="$SECRET_KEY" \
             --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
@@ -188,10 +189,10 @@ jobs:
       - name: Wait for rollout
         run: |
           for svc in api-gateway ingestion-service nlp-service vector-service frontend; do
-            kubectl rollout status deployment/$svc -n smart-doc --timeout=300s
+            kubectl rollout status deployment/$svc -n docuai --timeout=300s
           done
 
       - name: Get service URLs
         run: |
-          kubectl get services -n smart-doc
-          kubectl get pods -n smart-doc
+          kubectl get services -n docuai
+          kubectl get pods -n docuai
