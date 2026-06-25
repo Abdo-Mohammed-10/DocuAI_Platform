@@ -2,31 +2,25 @@ name: CI
 
 on:
   push:
-    branches: [ main , develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
+    environment: sec DocuAI
+    env:
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
-      - name: Install uv
-        run: pip install uv
-
-      - name: Install dependencies
-        run: uv pip install --system -r requirements/dev.txt
-
-      - name: Lint with ruff
-        run: ruff check .
-
-      - name: Run tests
-        run: pytest tests/ -v   
+          python-version: "3.11"
+      - run: pip install uv
+      - run: uv pip install --system -r requirements/dev.txt
+      - run: ruff check .
+      - run: pytest tests/ -v
