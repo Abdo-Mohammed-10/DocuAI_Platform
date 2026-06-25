@@ -67,16 +67,16 @@ jobs:
 
       - name: Create production namespace
         run: |
-          kubectl create namespace smart-doc-prod --dry-run=client -o yaml \
+          kubectl create namespace docuai-prod --dry-run=client -o yaml \
             | kubectl apply -f -
 
       - name: Apply ConfigMap
         run: |
-          kubectl create configmap smart-doc-config \
-            --namespace=smart-doc-prod \
+          kubectl create configmap docuai-config \
+            --namespace=docuai-prod \
             --from-literal=APP_ENV=production \
             --from-literal=POSTGRES_HOST=${{ secrets.DB_ENDPOINT }} \
-            --from-literal=POSTGRES_DB=smart_doc_db \
+            --from-literal=POSTGRES_DB=docuai_db \
             --from-literal=POSTGRES_USER=postgres \
             --from-literal=REDIS_HOST=${{ secrets.REDIS_ENDPOINT }} \
             --from-literal=AWS_S3_BUCKET=${{ secrets.S3_BUCKET_NAME }} \
@@ -85,8 +85,8 @@ jobs:
 
       - name: Apply Secrets
         run: |
-          kubectl create secret generic smart-doc-secrets \
-            --namespace=smart-doc-prod \
+          kubectl create secret generic docuai-secrets \
+            --namespace=docuai-prod \
             --from-literal=POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }} \
             --from-literal=SECRET_KEY=${{ secrets.SECRET_KEY }} \
             --from-literal=OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} \
@@ -97,4 +97,4 @@ jobs:
         run: |
           echo "✅ Production deployment complete!"
           echo "Version: ${{ steps.tag.outputs.version }}"
-          kubectl get pods -n smart-doc-prod
+          kubectl get pods -n docuai-prod
