@@ -177,60 +177,83 @@ jobs:
             --from-literal=LANGCHAIN_API_KEY="$LANGCHAIN_API_KEY" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Verify images in ECR
+      - name: 🔍 List deployment files
         run: |
-          IMAGE_TAG=${{ needs.build.outputs.image_tag }}
-          ECR=${{ secrets.ECR_REGISTRY }}
-          
-          echo "Verifying images with tag: $IMAGE_TAG"
-          services=(api-gateway ingestion nlp vector analytics frontend)
-          
-          for svc in "${services[@]}"; do
-            echo "Checking docuai-${svc}:${IMAGE_TAG}..."
-            if aws ecr describe-images \
-              --repository-name "docuai-${svc}" \
-              --image-ids imageTag="${IMAGE_TAG}" \
-              --region ${{ secrets.AWS_REGION }} > /dev/null 2>&1; then
-              echo "✅ docuai-${svc}:${IMAGE_TAG} found"
-            else
-              echo "⚠️ docuai-${svc}:${IMAGE_TAG} not found, will use latest"
-            fi
-          done
+          echo "=== Files in k8s/deployments/ ==="
+          ls -la k8s/deployments/
+          echo ""
+          echo "=== All YAML files in k8s/ ==="
+          find k8s/ -name "*.yaml" -o -name "*.yml"
 
       - name: Update image tags in deployments
         run: |
           IMAGE_TAG=${{ needs.build.outputs.image_tag }}
           ECR=${{ secrets.ECR_REGISTRY }}
+          DEPLOY_DIR="k8s/deployments"
           
           echo "Updating deployments with tag: $IMAGE_TAG"
           
           # API Gateway
-          sed -i "s|image:.*docuai-api-gateway.*|image: ${ECR}/docuai-api-gateway:${IMAGE_TAG}|g" k8s/deployments/api-gateway.yaml
+          if [ -f "$DEPLOY_DIR/api-gateway.yaml" ]; then
+            echo "✅ Updating api-gateway..."
+            sed -i "s|image:.*docuai-api-gateway.*|image: ${ECR}/docuai-api-gateway:${IMAGE_TAG}|g" $DEPLOY_DIR/api-gateway.yaml
+          else
+            echo "⚠️ api-gateway.yaml not found, skipping..."
+          fi
           
           # Ingestion
-          sed -i "s|image:.*docuai-ingestion.*|image: ${ECR}/docuai-ingestion:${IMAGE_TAG}|g" k8s/deployments/ingestion.yaml
+          if [ -f "$DEPLOY_DIR/ingestion.yaml" ]; then
+            echo "✅ Updating ingestion..."
+            sed -i "s|image:.*docuai-ingestion.*|image: ${ECR}/docuai-ingestion:${IMAGE_TAG}|g" $DEPLOY_DIR/ingestion.yaml
+          else
+            echo "⚠️ ingestion.yaml not found, skipping..."
+          fi
           
           # NLP
-          sed -i "s|image:.*docuai-nlp.*|image: ${ECR}/docuai-nlp:${IMAGE_TAG}|g" k8s/deployments/nlp.yaml
+          if [ -f "$DEPLOY_DIR/nlp.yaml" ]; then
+            echo "✅ Updating nlp..."
+            sed -i "s|image:.*docuai-nlp.*|image: ${ECR}/docuai-nlp:${IMAGE_TAG}|g" $DEPLOY_DIR/nlp.yaml
+          else
+            echo "⚠️ nlp.yaml not found, skipping..."
+          fi
           
           # Vector
-          sed -i "s|image:.*docuai-vector.*|image: ${ECR}/docuai-vector:${IMAGE_TAG}|g" k8s/deployments/vector.yaml
+          if [ -f "$DEPLOY_DIR/vector.yaml" ]; then
+            echo "✅ Updating vector..."
+            sed -i "s|image:.*docuai-vector.*|image: ${ECR}/docuai-vector:${IMAGE_TAG}|g" $DEPLOY_DIR/vector.yaml
+          else
+            echo "⚠️ vector.yaml not found, skipping..."
+          fi
           
           # Analytics
-          sed -i "s|image:.*docuai-analytics.*|image: ${ECR}/docuai-analytics:${IMAGE_TAG}|g" k8s/deployments/analytics.yaml
+          if [ -f "$DEPLOY_DIR/analytics.yaml" ]; then
+            echo "✅ Updating analytics..."
+            sed -i "s|image:.*docuai-analytics.*|image: ${ECR}/docuai-analytics:${IMAGE_TAG}|g" $DEPLOY_DIR/analytics.yaml
+          else
+            echo "⚠️ analytics.yaml not found, skipping..."
+          fi
           
           # Frontend
-          sed -i "s|image:.*docuai-frontend.*|image: ${ECR}/docuai-frontend:${IMAGE_TAG}|g" k8s/deployments/frontend.yaml
+          if [ -f "$DEPLOY_DIR/frontend.yaml" ]; then
+            echo "✅ Updating frontend..."
+            sed -i "s|image:.*docuai-frontend.*|image: ${ECR}/docuai-frontend:${IMAGE_TAG}|g" $DEPLOY_DIR/frontend.yaml
+          else
+            echo "⚠️ frontend.yaml not found, skipping..."
+          fi
           
           # Change imagePullPolicy
-          find k8s/deployments/ -name "*.yaml" -exec sed -i "s|imagePullPolicy: Never|imagePullPolicy: Always|g" {} \;
+          find $DEPLOY_DIR -name "*.yaml" -exec sed -i "s|imagePullPolicy: Never|imagePullPolicy: Always|g" {} \;
           
-          echo "Updated deployments:"
-          grep -r "image:" k8s/deployments/
+          echo ""
+          echo "=== Updated images ==="
+          grep -r "image:" $DEPLOY_DIR/ 2>/dev/null || echo "No image lines found"
 
       - name: Deploy all services
         run: |
           echo "=== Deploying services ==="
+          echo "Files to deploy:"
+          ls -la k8s/deployments/
+          
           kubectl apply -f k8s/deployments/
           
           echo "Waiting 15 seconds for pods to start..."
@@ -241,24 +264,27 @@ jobs:
 
       - name: Wait for rollout
         run: |
-          services=(api-gateway ingestion-service nlp-service vector-service frontend)
-          
-          for svc in "${services[@]}"; do
-            echo "⏳ Waiting for $svc rollout..."
-            if kubectl rollout status deployment/$svc -n docuai --timeout=600s; then
-              echo "✅ $svc deployed successfully!"
-            else
-              echo "❌ $svc deployment failed!"
-              echo ""
-              echo "=== Pod Description ==="
-              kubectl describe pod -n docuai -l app=$svc 2>&1 || true
-              echo ""
-              echo "=== Pod Logs ==="
-              kubectl logs -n docuai -l app=$svc --tail=100 2>&1 || true
-              echo ""
-              echo "=== Events ==="
-              kubectl get events -n docuai --sort-by='.lastTimestamp' | tail -20
-              exit 1
+          # Get list of deployments from actual files
+          cd k8s/deployments/
+          for file in *.yaml; do
+            if [ -f "$file" ]; then
+              svc=$(echo $file | sed 's/\.yaml$//')
+              echo "⏳ Waiting for $svc rollout..."
+              if kubectl rollout status deployment/$svc -n docuai --timeout=600s; then
+                echo "✅ $svc deployed successfully!"
+              else
+                echo "❌ $svc deployment failed!"
+                echo ""
+                echo "=== Pod Description ==="
+                kubectl describe pod -n docuai -l app=$svc 2>&1 || true
+                echo ""
+                echo "=== Pod Logs ==="
+                kubectl logs -n docuai -l app=$svc --tail=100 2>&1 || true
+                echo ""
+                echo "=== Events ==="
+                kubectl get events -n docuai --sort-by='.lastTimestamp' | tail -20
+                exit 1
+              fi
             fi
           done
 
