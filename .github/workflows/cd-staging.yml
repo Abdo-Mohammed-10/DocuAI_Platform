@@ -17,9 +17,11 @@ jobs:
       SECRET_KEY:        ${{ secrets.SECRET_KEY }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - run: pip install uv
       - run: uv pip install --system -r requirements/dev.txt
       - run: ruff check .
@@ -30,7 +32,7 @@ jobs:
     name: Build & Push to ECR
     runs-on: ubuntu-latest
     needs: test
-    environment: sec DocuAI  # 👈 ضروري عشان يقرأ المتغيرات
+    environment: sec DocuAI
     outputs:
       image_tag: ${{ steps.tag.outputs.tag }}
 
@@ -46,7 +48,7 @@ jobs:
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ vars.AWS_REGION }}  # 👈 استخدم vars
+          aws-region:            ${{ vars.AWS_REGION }}
 
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -126,7 +128,7 @@ jobs:
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ vars.AWS_REGION }}  # 👈 استخدم vars
+          aws-region:            ${{ vars.AWS_REGION }}
 
       - name: Update kubeconfig
         run: |
@@ -175,27 +177,23 @@ jobs:
             --from-literal=LANGCHAIN_API_KEY="$LANGCHAIN_API_KEY" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      # 👇 الخطوة دي مهمة - بتأكد إن الصور موجودة قبل الـ deploy
-      - name: 🔍 Verify images in ECR
+      - name: Verify images in ECR
         run: |
           IMAGE_TAG=${{ needs.build.outputs.image_tag }}
           ECR=${{ vars.ECR_REGISTRY }}
           
-          echo "Checking images with tag: $IMAGE_TAG"
+          echo "Verifying images with tag: $IMAGE_TAG"
           services=(api-gateway ingestion nlp vector analytics frontend)
           
           for svc in "${services[@]}"; do
             echo "Checking docuai-${svc}:${IMAGE_TAG}..."
-            aws ecr describe-images \
+            if aws ecr describe-images \
               --repository-name "docuai-${svc}" \
               --image-ids imageTag="${IMAGE_TAG}" \
-              --region ${{ vars.AWS_REGION }} > /dev/null 2>&1
-            
-            if [ $? -eq 0 ]; then
+              --region ${{ vars.AWS_REGION }} > /dev/null 2>&1; then
               echo "✅ docuai-${svc}:${IMAGE_TAG} found"
             else
-              echo "❌ docuai-${svc}:${IMAGE_TAG} NOT FOUND! Using latest..."
-              # نستخدم latest كـ fallback
+              echo "⚠️ docuai-${svc}:${IMAGE_TAG} not found, will use latest"
             fi
           done
 
@@ -204,32 +202,41 @@ jobs:
           IMAGE_TAG=${{ needs.build.outputs.image_tag }}
           ECR=${{ vars.ECR_REGISTRY }}
           
-          # استخدم latest كـ fallback لو الـ sha tag مش موجود
-          # أو ممكن تستخدم IMAGE_TAG مباشرة
+          echo "Updating deployments with tag: $IMAGE_TAG"
           
-          services=(api-gateway ingestion nlp vector analytics frontend)
+          # API Gateway
+          sed -i "s|image:.*docuai-api-gateway.*|image: ${ECR}/docuai-api-gateway:${IMAGE_TAG}|g" k8s/deployments/api-gateway.yaml
           
-          for svc in "${services[@]}"; do
-            if [ -f "k8s/deployments/${svc}.yaml" ]; then
-              echo "Updating ${svc} deployment..."
-              sed -i "s|image:.*|image: ${ECR}/docuai-${svc}:${IMAGE_TAG}|g" \
-                k8s/deployments/${svc}.yaml
-            fi
-          done
+          # Ingestion
+          sed -i "s|image:.*docuai-ingestion.*|image: ${ECR}/docuai-ingestion:${IMAGE_TAG}|g" k8s/deployments/ingestion.yaml
           
-          # غير imagePullPolicy
-          find k8s/deployments/ -name "*.yaml" \
-            -exec sed -i "s|imagePullPolicy: Never|imagePullPolicy: Always|g" {} \;
+          # NLP
+          sed -i "s|image:.*docuai-nlp.*|image: ${ECR}/docuai-nlp:${IMAGE_TAG}|g" k8s/deployments/nlp.yaml
+          
+          # Vector
+          sed -i "s|image:.*docuai-vector.*|image: ${ECR}/docuai-vector:${IMAGE_TAG}|g" k8s/deployments/vector.yaml
+          
+          # Analytics
+          sed -i "s|image:.*docuai-analytics.*|image: ${ECR}/docuai-analytics:${IMAGE_TAG}|g" k8s/deployments/analytics.yaml
+          
+          # Frontend
+          sed -i "s|image:.*docuai-frontend.*|image: ${ECR}/docuai-frontend:${IMAGE_TAG}|g" k8s/deployments/frontend.yaml
+          
+          # Change imagePullPolicy
+          find k8s/deployments/ -name "*.yaml" -exec sed -i "s|imagePullPolicy: Never|imagePullPolicy: Always|g" {} \;
+          
+          echo "Updated deployments:"
+          grep -r "image:" k8s/deployments/
 
       - name: Deploy all services
         run: |
-          echo "=== Applying deployments ==="
+          echo "=== Deploying services ==="
           kubectl apply -f k8s/deployments/
           
-          # استنى شوية عشان الـ pods تبدأ
-          sleep 10
+          echo "Waiting 15 seconds for pods to start..."
+          sleep 15
           
-          echo "=== Checking initial pod status ==="
+          echo "=== Initial Pod Status ==="
           kubectl get pods -n docuai -o wide
 
       - name: Wait for rollout
@@ -237,15 +244,20 @@ jobs:
           services=(api-gateway ingestion-service nlp-service vector-service frontend)
           
           for svc in "${services[@]}"; do
-            echo "⏳ Waiting for $svc..."
+            echo "⏳ Waiting for $svc rollout..."
             if kubectl rollout status deployment/$svc -n docuai --timeout=600s; then
               echo "✅ $svc deployed successfully!"
             else
               echo "❌ $svc deployment failed!"
-              echo "=== Pod description ==="
+              echo ""
+              echo "=== Pod Description ==="
               kubectl describe pod -n docuai -l app=$svc 2>&1 || true
-              echo "=== Pod logs ==="
+              echo ""
+              echo "=== Pod Logs ==="
               kubectl logs -n docuai -l app=$svc --tail=100 2>&1 || true
+              echo ""
+              echo "=== Events ==="
+              kubectl get events -n docuai --sort-by='.lastTimestamp' | tail -20
               exit 1
             fi
           done
@@ -253,8 +265,19 @@ jobs:
       - name: Get service URLs
         if: always()
         run: |
-          echo "=== Deployed Services ==="
+          echo ""
+          echo "=========================================="
+          echo "  🚀 Deployment Complete!"
+          echo "=========================================="
+          echo ""
+          echo "=== Services ==="
           kubectl get services -n docuai
           echo ""
-          echo "=== Pods Status ==="
+          echo "=== Pods ==="
           kubectl get pods -n docuai -o wide
+          echo ""
+          echo "=== ConfigMaps ==="
+          kubectl get configmap -n docuai
+          echo ""
+          echo "=== Secrets ==="
+          kubectl get secret -n docuai
