@@ -28,7 +28,7 @@ jobs:
       - run: pytest tests/ -v
 
   # ── Job 2: Build & Push Images ────────────────────────────
-  build:
+   build:
     name: Build & Push to ECR
     runs-on: ubuntu-latest
     needs: test
@@ -113,7 +113,7 @@ jobs:
             ${{ secrets.ECR_REGISTRY }}/docuai-frontend:${{ steps.tag.outputs.tag }}
             ${{ secrets.ECR_REGISTRY }}/docuai-frontend:latest
 
-  # ── Job 3: Deploy to EKS ──────────────────────────────────
+ # ── Job 3: Deploy to EKS ──────────────────────────────────
   deploy:
     name: Deploy to EKS
     runs-on: ubuntu-latest
@@ -177,114 +177,75 @@ jobs:
             --from-literal=LANGCHAIN_API_KEY="$LANGCHAIN_API_KEY" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: 🔍 List deployment files
+      - name: 🧹 Clean up old resources
         run: |
-          echo "=== Files in k8s/deployments/ ==="
-          ls -la k8s/deployments/
-          echo ""
-          echo "=== All YAML files in k8s/ ==="
-          find k8s/ -name "*.yaml" -o -name "*.yml"
+          echo "=== Deleting failed/pending pods ==="
+          kubectl delete pod -n docuai --field-selector=status.phase=Failed 2>/dev/null || true
+          kubectl delete pod -n docuai --field-selector=status.phase=Pending --grace-period=0 --force 2>/dev/null || true
+          
+          echo "=== Scaling down old deployments ==="
+          kubectl scale deployment -n docuai --all --replicas=0 2>/dev/null || true
+          
+          sleep 10
+          
+          echo "=== Current pods ==="
+          kubectl get pods -n docuai 2>/dev/null || echo "No pods"
 
-      - name: Update image tags in deployments
+      - name: Deploy and update images
         run: |
           IMAGE_TAG=${{ needs.build.outputs.image_tag }}
           ECR=${{ secrets.ECR_REGISTRY }}
-          DEPLOY_DIR="k8s/deployments"
           
-          echo "Updating deployments with tag: $IMAGE_TAG"
-          
-          # API Gateway
-          if [ -f "$DEPLOY_DIR/api-gateway.yaml" ]; then
-            echo "✅ Updating api-gateway..."
-            sed -i "s|image:.*docuai-api-gateway.*|image: ${ECR}/docuai-api-gateway:${IMAGE_TAG}|g" $DEPLOY_DIR/api-gateway.yaml
-          else
-            echo "⚠️ api-gateway.yaml not found, skipping..."
-          fi
-          
-          # Ingestion
-          if [ -f "$DEPLOY_DIR/ingestion.yaml" ]; then
-            echo "✅ Updating ingestion..."
-            sed -i "s|image:.*docuai-ingestion.*|image: ${ECR}/docuai-ingestion:${IMAGE_TAG}|g" $DEPLOY_DIR/ingestion.yaml
-          else
-            echo "⚠️ ingestion.yaml not found, skipping..."
-          fi
-          
-          # NLP
-          if [ -f "$DEPLOY_DIR/nlp.yaml" ]; then
-            echo "✅ Updating nlp..."
-            sed -i "s|image:.*docuai-nlp.*|image: ${ECR}/docuai-nlp:${IMAGE_TAG}|g" $DEPLOY_DIR/nlp.yaml
-          else
-            echo "⚠️ nlp.yaml not found, skipping..."
-          fi
-          
-          # Vector
-          if [ -f "$DEPLOY_DIR/vector.yaml" ]; then
-            echo "✅ Updating vector..."
-            sed -i "s|image:.*docuai-vector.*|image: ${ECR}/docuai-vector:${IMAGE_TAG}|g" $DEPLOY_DIR/vector.yaml
-          else
-            echo "⚠️ vector.yaml not found, skipping..."
-          fi
-          
-          # Analytics
-          if [ -f "$DEPLOY_DIR/analytics.yaml" ]; then
-            echo "✅ Updating analytics..."
-            sed -i "s|image:.*docuai-analytics.*|image: ${ECR}/docuai-analytics:${IMAGE_TAG}|g" $DEPLOY_DIR/analytics.yaml
-          else
-            echo "⚠️ analytics.yaml not found, skipping..."
-          fi
-          
-          # Frontend
-          if [ -f "$DEPLOY_DIR/frontend.yaml" ]; then
-            echo "✅ Updating frontend..."
-            sed -i "s|image:.*docuai-frontend.*|image: ${ECR}/docuai-frontend:${IMAGE_TAG}|g" $DEPLOY_DIR/frontend.yaml
-          else
-            echo "⚠️ frontend.yaml not found, skipping..."
-          fi
-          
-          # Change imagePullPolicy
-          find $DEPLOY_DIR -name "*.yaml" -exec sed -i "s|imagePullPolicy: Never|imagePullPolicy: Always|g" {} \;
-          
-          echo ""
-          echo "=== Updated images ==="
-          grep -r "image:" $DEPLOY_DIR/ 2>/dev/null || echo "No image lines found"
-
-      - name: Deploy all services
-        run: |
-          echo "=== Deploying services ==="
-          echo "Files to deploy:"
-          ls -la k8s/deployments/
-          
+          echo "=== Applying deployment files ==="
           kubectl apply -f k8s/deployments/
           
-          echo "Waiting 15 seconds for pods to start..."
-          sleep 15
+          sleep 5
           
-          echo "=== Initial Pod Status ==="
-          kubectl get pods -n docuai -o wide
+          echo "=== Updating images ==="
+          
+          kubectl set image deployment/api-gateway \
+            api-gateway=${ECR}/docuai-api-gateway:${IMAGE_TAG} \
+            -n docuai 2>/dev/null && echo "✅ api-gateway updated" || echo "⚠️ api-gateway not found"
+          
+          kubectl set image deployment/ingestion-service \
+            ingestion-service=${ECR}/docuai-ingestion:${IMAGE_TAG} \
+            -n docuai 2>/dev/null && echo "✅ ingestion-service updated" || echo "⚠️ ingestion-service not found"
+          
+          kubectl set image deployment/nlp-service \
+            nlp-service=${ECR}/docuai-nlp:${IMAGE_TAG} \
+            -n docuai 2>/dev/null && echo "✅ nlp-service updated" || echo "⚠️ nlp-service not found"
+          
+          kubectl set image deployment/vector-service \
+            vector-service=${ECR}/docuai-vector:${IMAGE_TAG} \
+            -n docuai 2>/dev/null && echo "✅ vector-service updated" || echo "⚠️ vector-service not found"
+          
+          kubectl set image deployment/frontend \
+            frontend=${ECR}/docuai-frontend:${IMAGE_TAG} \
+            -n docuai 2>/dev/null && echo "✅ frontend updated" || echo "⚠️ frontend not found"
 
       - name: Wait for rollout
         run: |
-          # Get list of deployments from actual files
-          cd k8s/deployments/
-          for file in *.yaml; do
-            if [ -f "$file" ]; then
-              svc=$(echo $file | sed 's/\.yaml$//')
-              echo "⏳ Waiting for $svc rollout..."
-              if kubectl rollout status deployment/$svc -n docuai --timeout=600s; then
-                echo "✅ $svc deployed successfully!"
-              else
-                echo "❌ $svc deployment failed!"
-                echo ""
-                echo "=== Pod Description ==="
-                kubectl describe pod -n docuai -l app=$svc 2>&1 || true
-                echo ""
-                echo "=== Pod Logs ==="
-                kubectl logs -n docuai -l app=$svc --tail=100 2>&1 || true
-                echo ""
-                echo "=== Events ==="
-                kubectl get events -n docuai --sort-by='.lastTimestamp' | tail -20
-                exit 1
-              fi
+          echo "Waiting 30 seconds for pods to start..."
+          sleep 30
+          
+          echo "=== Pod Status ==="
+          kubectl get pods -n docuai -o wide
+          
+          echo ""
+          echo "=== Checking deployments ==="
+          for deploy in $(kubectl get deployment -n docuai -o jsonpath='{.items[*].metadata.name}'); do
+            echo "⏳ Waiting for $deploy..."
+            if kubectl rollout status deployment/$deploy -n docuai --timeout=600s; then
+              echo "✅ $deploy deployed successfully!"
+            else
+              echo "❌ $deploy failed!"
+              echo "=== Describe ==="
+              kubectl describe deployment $deploy -n docuai
+              echo "=== Pod Logs ==="
+              kubectl logs -n docuai -l app=$deploy --tail=50 --all-containers=true 2>&1 || true
+              echo "=== Events ==="
+              kubectl get events -n docuai --sort-by='.lastTimestamp' | tail -10
+              exit 1
             fi
           done
 
@@ -302,8 +263,5 @@ jobs:
           echo "=== Pods ==="
           kubectl get pods -n docuai -o wide
           echo ""
-          echo "=== ConfigMaps ==="
-          kubectl get configmap -n docuai
-          echo ""
-          echo "=== Secrets ==="
-          kubectl get secret -n docuai
+          echo "=== Resource Usage ==="
+          kubectl top pods -n docuai 2>/dev/null || echo "metrics-server not available"
