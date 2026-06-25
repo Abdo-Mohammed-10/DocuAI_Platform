@@ -4,11 +4,6 @@ on:
   push:
     branches: [main]
 
-env:
-  AWS_REGION:       ${{ secrets.AWS_REGION }}
-  ECR_REGISTRY:     ${{ secrets.ECR_REGISTRY }}
-  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
-
 jobs:
   # ── Job 1: Run Tests ──────────────────────────────────────
   test:
@@ -35,7 +30,7 @@ jobs:
     name: Build & Push to ECR
     runs-on: ubuntu-latest
     needs: test
-    environment: sec DocuAI
+    environment: sec DocuAI  # 👈 ضروري عشان يقرأ المتغيرات
     outputs:
       image_tag: ${{ steps.tag.outputs.tag }}
 
@@ -51,7 +46,7 @@ jobs:
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+          aws-region:            ${{ vars.AWS_REGION }}  # 👈 استخدم vars
 
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -63,8 +58,8 @@ jobs:
           file: services/api_gateway/Dockerfile
           push: true
           tags: |
-            ${{ env.ECR_REGISTRY }}/docuai-api-gateway:${{ steps.tag.outputs.tag }}
-            ${{ env.ECR_REGISTRY }}/docuai-api-gateway:latest
+            ${{ vars.ECR_REGISTRY }}/docuai-api-gateway:${{ steps.tag.outputs.tag }}
+            ${{ vars.ECR_REGISTRY }}/docuai-api-gateway:latest
 
       - name: Build & Push — Ingestion
         uses: docker/build-push-action@v5
@@ -73,8 +68,8 @@ jobs:
           file: services/ingestion_service/Dockerfile
           push: true
           tags: |
-            ${{ env.ECR_REGISTRY }}/docuai-ingestion:${{ steps.tag.outputs.tag }}
-            ${{ env.ECR_REGISTRY }}/docuai-ingestion:latest
+            ${{ vars.ECR_REGISTRY }}/docuai-ingestion:${{ steps.tag.outputs.tag }}
+            ${{ vars.ECR_REGISTRY }}/docuai-ingestion:latest
 
       - name: Build & Push — NLP
         uses: docker/build-push-action@v5
@@ -83,8 +78,8 @@ jobs:
           file: services/nlp_service/Dockerfile
           push: true
           tags: |
-            ${{ env.ECR_REGISTRY }}/docuai-nlp:${{ steps.tag.outputs.tag }}
-            ${{ env.ECR_REGISTRY }}/docuai-nlp:latest
+            ${{ vars.ECR_REGISTRY }}/docuai-nlp:${{ steps.tag.outputs.tag }}
+            ${{ vars.ECR_REGISTRY }}/docuai-nlp:latest
 
       - name: Build & Push — Vector
         uses: docker/build-push-action@v5
@@ -93,8 +88,8 @@ jobs:
           file: services/vector_service/Dockerfile
           push: true
           tags: |
-            ${{ env.ECR_REGISTRY }}/docuai-vector:${{ steps.tag.outputs.tag }}
-            ${{ env.ECR_REGISTRY }}/docuai-vector:latest
+            ${{ vars.ECR_REGISTRY }}/docuai-vector:${{ steps.tag.outputs.tag }}
+            ${{ vars.ECR_REGISTRY }}/docuai-vector:latest
 
       - name: Build & Push — Analytics
         uses: docker/build-push-action@v5
@@ -103,8 +98,8 @@ jobs:
           file: services/analytics_service/Dockerfile
           push: true
           tags: |
-            ${{ env.ECR_REGISTRY }}/docuai-analytics:${{ steps.tag.outputs.tag }}
-            ${{ env.ECR_REGISTRY }}/docuai-analytics:latest
+            ${{ vars.ECR_REGISTRY }}/docuai-analytics:${{ steps.tag.outputs.tag }}
+            ${{ vars.ECR_REGISTRY }}/docuai-analytics:latest
 
       - name: Build & Push — Frontend
         uses: docker/build-push-action@v5
@@ -113,8 +108,8 @@ jobs:
           file: frontend/streamlit_app/Dockerfile
           push: true
           tags: |
-            ${{ env.ECR_REGISTRY }}/docuai-frontend:${{ steps.tag.outputs.tag }}
-            ${{ env.ECR_REGISTRY }}/docuai-frontend:latest
+            ${{ vars.ECR_REGISTRY }}/docuai-frontend:${{ steps.tag.outputs.tag }}
+            ${{ vars.ECR_REGISTRY }}/docuai-frontend:latest
 
   # ── Job 3: Deploy to EKS ──────────────────────────────────
   deploy:
@@ -131,13 +126,13 @@ jobs:
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+          aws-region:            ${{ vars.AWS_REGION }}  # 👈 استخدم vars
 
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig \
-            --region ${{ env.AWS_REGION }} \
-            --name ${{ env.EKS_CLUSTER_NAME }}
+            --region ${{ vars.AWS_REGION }} \
+            --name ${{ vars.EKS_CLUSTER_NAME }}
 
       - name: Create namespace
         run: |
@@ -151,7 +146,7 @@ jobs:
         run: |
           kubectl create configmap docuai-config \
             --namespace=docuai \
-            --from-literal=APP_ENV=production \
+            --from-literal=APP_ENV=staging \
             --from-literal=POSTGRES_HOST="$DB_ENDPOINT" \
             --from-literal=POSTGRES_PORT=5432 \
             --from-literal=POSTGRES_DB=docuai_db \
@@ -159,7 +154,7 @@ jobs:
             --from-literal=REDIS_HOST="$REDIS_ENDPOINT" \
             --from-literal=REDIS_PORT=6379 \
             --from-literal=AWS_S3_BUCKET="$S3_BUCKET" \
-            --from-literal=AWS_REGION="$AWS_REGION" \
+            --from-literal=AWS_REGION="${{ vars.AWS_REGION }}" \
             --from-literal=INGESTION_URL=http://ingestion-service:8001 \
             --from-literal=NLP_URL=http://nlp-service:8002 \
             --from-literal=VECTOR_URL=http://vector-service:8003 \
@@ -180,19 +175,86 @@ jobs:
             --from-literal=LANGCHAIN_API_KEY="$LANGCHAIN_API_KEY" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Deploy all services
+      # 👇 الخطوة دي مهمة - بتأكد إن الصور موجودة قبل الـ deploy
+      - name: 🔍 Verify images in ECR
         run: |
+          IMAGE_TAG=${{ needs.build.outputs.image_tag }}
+          ECR=${{ vars.ECR_REGISTRY }}
+          
+          echo "Checking images with tag: $IMAGE_TAG"
+          services=(api-gateway ingestion nlp vector analytics frontend)
+          
+          for svc in "${services[@]}"; do
+            echo "Checking docuai-${svc}:${IMAGE_TAG}..."
+            aws ecr describe-images \
+              --repository-name "docuai-${svc}" \
+              --image-ids imageTag="${IMAGE_TAG}" \
+              --region ${{ vars.AWS_REGION }} > /dev/null 2>&1
+            
+            if [ $? -eq 0 ]; then
+              echo "✅ docuai-${svc}:${IMAGE_TAG} found"
+            else
+              echo "❌ docuai-${svc}:${IMAGE_TAG} NOT FOUND! Using latest..."
+              # نستخدم latest كـ fallback
+            fi
+          done
+
+      - name: Update image tags in deployments
+        run: |
+          IMAGE_TAG=${{ needs.build.outputs.image_tag }}
+          ECR=${{ vars.ECR_REGISTRY }}
+          
+          # استخدم latest كـ fallback لو الـ sha tag مش موجود
+          # أو ممكن تستخدم IMAGE_TAG مباشرة
+          
+          services=(api-gateway ingestion nlp vector analytics frontend)
+          
+          for svc in "${services[@]}"; do
+            if [ -f "k8s/deployments/${svc}.yaml" ]; then
+              echo "Updating ${svc} deployment..."
+              sed -i "s|image:.*|image: ${ECR}/docuai-${svc}:${IMAGE_TAG}|g" \
+                k8s/deployments/${svc}.yaml
+            fi
+          done
+          
+          # غير imagePullPolicy
           find k8s/deployments/ -name "*.yaml" \
             -exec sed -i "s|imagePullPolicy: Never|imagePullPolicy: Always|g" {} \;
+
+      - name: Deploy all services
+        run: |
+          echo "=== Applying deployments ==="
           kubectl apply -f k8s/deployments/
+          
+          # استنى شوية عشان الـ pods تبدأ
+          sleep 10
+          
+          echo "=== Checking initial pod status ==="
+          kubectl get pods -n docuai -o wide
 
       - name: Wait for rollout
         run: |
-          for svc in api-gateway ingestion-service nlp-service vector-service frontend; do
-            kubectl rollout status deployment/$svc -n docuai --timeout=300s
+          services=(api-gateway ingestion-service nlp-service vector-service frontend)
+          
+          for svc in "${services[@]}"; do
+            echo "⏳ Waiting for $svc..."
+            if kubectl rollout status deployment/$svc -n docuai --timeout=600s; then
+              echo "✅ $svc deployed successfully!"
+            else
+              echo "❌ $svc deployment failed!"
+              echo "=== Pod description ==="
+              kubectl describe pod -n docuai -l app=$svc 2>&1 || true
+              echo "=== Pod logs ==="
+              kubectl logs -n docuai -l app=$svc --tail=100 2>&1 || true
+              exit 1
+            fi
           done
 
       - name: Get service URLs
+        if: always()
         run: |
+          echo "=== Deployed Services ==="
           kubectl get services -n docuai
-          kubectl get pods -n docuai
+          echo ""
+          echo "=== Pods Status ==="
+          kubectl get pods -n docuai -o wide
