@@ -11,10 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: sec DocuAI
     env:
-      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DB_PASSWORD:       ${{ secrets.DB_PASSWORD }}
+      OPENAI_API_KEY:    ${{ secrets.OPENAI_API_KEY }}
       LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
-      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      SECRET_KEY:        ${{ secrets.SECRET_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

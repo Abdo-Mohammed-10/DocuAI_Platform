@@ -3,7 +3,7 @@ name: CD — Production
 on:
   push:
     tags:
-      - "v*.*.*"   # v1.0.0, v1.2.3, etc.
+      - "v*.*.*"
 
 env:
   AWS_REGION:       ${{ secrets.AWS_REGION }}
@@ -14,7 +14,7 @@ jobs:
   deploy-prod:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    environment: production   # بيطلب manual approval في GitHub
+    environment: sec DocuAI
 
     steps:
       - uses: actions/checkout@v4
@@ -33,28 +33,28 @@ jobs:
         id: tag
         run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Build & Push all images with version tag
+      - name: Build & Push all images
         run: |
           VERSION=${{ steps.tag.outputs.version }}
           ECR=${{ env.ECR_REGISTRY }}
 
-          services=("api-gateway:services/api_gateway/Dockerfile"
-                    "ingestion:services/ingestion_service/Dockerfile"
-                    "nlp:services/nlp_service/Dockerfile"
-                    "vector:services/vector_service/Dockerfile"
-                    "analytics:services/analytics_service/Dockerfile"
-                    "frontend:frontend/streamlit_app/Dockerfile")
+          services=(
+            "api-gateway:services/api_gateway/Dockerfile"
+            "ingestion:services/ingestion_service/Dockerfile"
+            "nlp:services/nlp_service/Dockerfile"
+            "vector:services/vector_service/Dockerfile"
+            "analytics:services/analytics_service/Dockerfile"
+            "frontend:frontend/streamlit_app/Dockerfile"
+          )
 
           for item in "${services[@]}"; do
             name="${item%%:*}"
             dockerfile="${item##*:}"
-
             echo "Building docuai-${name}:${VERSION}..."
             docker build \
               -t "${ECR}/docuai-${name}:${VERSION}" \
               -t "${ECR}/docuai-${name}:stable" \
               -f "${dockerfile}" .
-
             docker push "${ECR}/docuai-${name}:${VERSION}"
             docker push "${ECR}/docuai-${name}:stable"
           done
@@ -65,16 +65,13 @@ jobs:
             --region ${{ env.AWS_REGION }} \
             --name ${{ env.EKS_CLUSTER_NAME }}
 
-      - name: Deploy to production namespace
+      - name: Create production namespace
         run: |
-          VERSION=${{ steps.tag.outputs.version }}
-          ECR=${{ env.ECR_REGISTRY }}
-
-          # عمل namespace للـ prod
           kubectl create namespace smart-doc-prod --dry-run=client -o yaml \
             | kubectl apply -f -
 
-          # Apply configs
+      - name: Apply ConfigMap
+        run: |
           kubectl create configmap smart-doc-config \
             --namespace=smart-doc-prod \
             --from-literal=APP_ENV=production \
@@ -86,6 +83,8 @@ jobs:
             --from-literal=AWS_REGION=${{ env.AWS_REGION }} \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Apply Secrets
+        run: |
           kubectl create secret generic smart-doc-secrets \
             --namespace=smart-doc-prod \
             --from-literal=POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }} \
