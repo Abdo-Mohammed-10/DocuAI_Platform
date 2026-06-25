@@ -43,21 +43,12 @@ jobs:
         id: tag
         run: echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
 
-      - name: 🔍 Debug - Check Variables
-        run: |
-          echo "AWS_REGION from vars: ${{ vars.AWS_REGION }}"
-          echo "ECR_REGISTRY from vars: ${{ vars.ECR_REGISTRY }}"
-          echo "EKS_CLUSTER_NAME from vars: ${{ vars.EKS_CLUSTER_NAME }}"
-          echo ""
-          echo "AWS_REGION from secrets: ${{ secrets.AWS_REGION }}"
-          echo "ECR_REGISTRY from secrets: ${{ secrets.ECR_REGISTRY }}"
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
+          aws-region:            ${{ secrets.AWS_REGION }}
 
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -69,8 +60,8 @@ jobs:
           file: services/api_gateway/Dockerfile
           push: true
           tags: |
-            ${{ vars.ECR_REGISTRY }}/docuai-api-gateway:${{ steps.tag.outputs.tag }}
-            ${{ vars.ECR_REGISTRY }}/docuai-api-gateway:latest
+            ${{ secrets.ECR_REGISTRY }}/docuai-api-gateway:${{ steps.tag.outputs.tag }}
+            ${{ secrets.ECR_REGISTRY }}/docuai-api-gateway:latest
 
       - name: Build & Push — Ingestion
         uses: docker/build-push-action@v5
@@ -79,8 +70,8 @@ jobs:
           file: services/ingestion_service/Dockerfile
           push: true
           tags: |
-            ${{ vars.ECR_REGISTRY }}/docuai-ingestion:${{ steps.tag.outputs.tag }}
-            ${{ vars.ECR_REGISTRY }}/docuai-ingestion:latest
+            ${{ secrets.ECR_REGISTRY }}/docuai-ingestion:${{ steps.tag.outputs.tag }}
+            ${{ secrets.ECR_REGISTRY }}/docuai-ingestion:latest
 
       - name: Build & Push — NLP
         uses: docker/build-push-action@v5
@@ -89,8 +80,8 @@ jobs:
           file: services/nlp_service/Dockerfile
           push: true
           tags: |
-            ${{ vars.ECR_REGISTRY }}/docuai-nlp:${{ steps.tag.outputs.tag }}
-            ${{ vars.ECR_REGISTRY }}/docuai-nlp:latest
+            ${{ secrets.ECR_REGISTRY }}/docuai-nlp:${{ steps.tag.outputs.tag }}
+            ${{ secrets.ECR_REGISTRY }}/docuai-nlp:latest
 
       - name: Build & Push — Vector
         uses: docker/build-push-action@v5
@@ -99,8 +90,8 @@ jobs:
           file: services/vector_service/Dockerfile
           push: true
           tags: |
-            ${{ vars.ECR_REGISTRY }}/docuai-vector:${{ steps.tag.outputs.tag }}
-            ${{ vars.ECR_REGISTRY }}/docuai-vector:latest
+            ${{ secrets.ECR_REGISTRY }}/docuai-vector:${{ steps.tag.outputs.tag }}
+            ${{ secrets.ECR_REGISTRY }}/docuai-vector:latest
 
       - name: Build & Push — Analytics
         uses: docker/build-push-action@v5
@@ -109,8 +100,8 @@ jobs:
           file: services/analytics_service/Dockerfile
           push: true
           tags: |
-            ${{ vars.ECR_REGISTRY }}/docuai-analytics:${{ steps.tag.outputs.tag }}
-            ${{ vars.ECR_REGISTRY }}/docuai-analytics:latest
+            ${{ secrets.ECR_REGISTRY }}/docuai-analytics:${{ steps.tag.outputs.tag }}
+            ${{ secrets.ECR_REGISTRY }}/docuai-analytics:latest
 
       - name: Build & Push — Frontend
         uses: docker/build-push-action@v5
@@ -119,8 +110,8 @@ jobs:
           file: frontend/streamlit_app/Dockerfile
           push: true
           tags: |
-            ${{ vars.ECR_REGISTRY }}/docuai-frontend:${{ steps.tag.outputs.tag }}
-            ${{ vars.ECR_REGISTRY }}/docuai-frontend:latest
+            ${{ secrets.ECR_REGISTRY }}/docuai-frontend:${{ steps.tag.outputs.tag }}
+            ${{ secrets.ECR_REGISTRY }}/docuai-frontend:latest
 
   # ── Job 3: Deploy to EKS ──────────────────────────────────
   deploy:
@@ -132,24 +123,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🔍 Debug - Check Variables
-        run: |
-          echo "AWS_REGION from vars: ${{ vars.AWS_REGION }}"
-          echo "ECR_REGISTRY from vars: ${{ vars.ECR_REGISTRY }}"
-          echo "EKS_CLUSTER_NAME from vars: ${{ vars.EKS_CLUSTER_NAME }}"
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            us-east-1
+          aws-region:            ${{ secrets.AWS_REGION }}
 
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig \
-            --region us-east-1 \
-            --name ${{ vars.EKS_CLUSTER_NAME }}
+            --region ${{ secrets.AWS_REGION }} \
+            --name ${{ secrets.EKS_CLUSTER_NAME }}
 
       - name: Create namespace
         run: |
@@ -171,7 +156,7 @@ jobs:
             --from-literal=REDIS_HOST="$REDIS_ENDPOINT" \
             --from-literal=REDIS_PORT=6379 \
             --from-literal=AWS_S3_BUCKET="$S3_BUCKET" \
-            --from-literal=AWS_REGION="us-east-1" \
+            --from-literal=AWS_REGION="${{ secrets.AWS_REGION }}" \
             --from-literal=INGESTION_URL=http://ingestion-service:8001 \
             --from-literal=NLP_URL=http://nlp-service:8002 \
             --from-literal=VECTOR_URL=http://vector-service:8003 \
@@ -195,7 +180,7 @@ jobs:
       - name: Verify images in ECR
         run: |
           IMAGE_TAG=${{ needs.build.outputs.image_tag }}
-          ECR=${{ vars.ECR_REGISTRY }}
+          ECR=${{ secrets.ECR_REGISTRY }}
           
           echo "Verifying images with tag: $IMAGE_TAG"
           services=(api-gateway ingestion nlp vector analytics frontend)
@@ -205,7 +190,7 @@ jobs:
             if aws ecr describe-images \
               --repository-name "docuai-${svc}" \
               --image-ids imageTag="${IMAGE_TAG}" \
-              --region us-east-1 > /dev/null 2>&1; then
+              --region ${{ secrets.AWS_REGION }} > /dev/null 2>&1; then
               echo "✅ docuai-${svc}:${IMAGE_TAG} found"
             else
               echo "⚠️ docuai-${svc}:${IMAGE_TAG} not found, will use latest"
@@ -215,7 +200,7 @@ jobs:
       - name: Update image tags in deployments
         run: |
           IMAGE_TAG=${{ needs.build.outputs.image_tag }}
-          ECR=${{ vars.ECR_REGISTRY }}
+          ECR=${{ secrets.ECR_REGISTRY }}
           
           echo "Updating deployments with tag: $IMAGE_TAG"
           
